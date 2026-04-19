@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="action_sg_dispatch_route" model="ir.actions.act_window">
+            <field name="name">Rutas de despacho</field>
+            <field name="res_model">sg.dispatch.route</field>
+            <field name="view_mode">list,form</field>
+            <field name="help" type="html">
+                <p>
+                    Crea rutas de despacho por almacén, definiendo una ubicación raíz
+                    y excluyendo ubicaciones internas que no deban participar.
+                </p>
+            </field>
+        </record>
+
+        <menuitem
+        id="menu_sg_dispatch_route_root"
+        name="Rutas de despacho"
+        parent="stock.menu_stock_root"
+        action="action_sg_dispatch_route"
+        sequence="5"
+        />
+    </data>
+</odoo>

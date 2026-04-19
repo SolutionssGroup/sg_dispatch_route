@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_sg_dispatch_route_user,access.sg.dispatch.route.user,model_sg_dispatch_route,stock.group_stock_manager,1,1,1,1
+access_sg_dispatch_route_exclude_line_user,access.sg.dispatch.route.exclude.line.user,model_sg_dispatch_route_exclude_line,stock.group_stock_manager,1,1,1,1

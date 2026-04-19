@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_stock_move_line_detailed_operation_tree_sg_dispatch_route_order" model="ir.ui.view">
+        <field name="name">stock.move.line.detailed.operation.tree.sg.dispatch.route.order</field>
+        <field name="model">stock.move.line</field>
+        <field name="inherit_id" ref="stock.view_stock_move_line_detailed_operation_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree" position="attributes">
+                <attribute name="default_order">sg_dispatch_order asc, id asc</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>

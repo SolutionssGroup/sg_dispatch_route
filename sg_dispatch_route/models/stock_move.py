@@ -1,0 +1,205 @@
+from odoo import fields, models
+from odoo.tools.float_utils import float_compare, float_is_zero
+
+
+class StockMove(models.Model):
+    _inherit = "stock.move"
+
+    sg_dispatch_route_processed = fields.Boolean(
+        string="Ruta de despacho procesada",
+        default=False,
+        copy=False,
+        readonly=True,
+    )
+
+    sg_dispatch_order = fields.Integer(
+        string="Orden ruta despacho",
+        default=9999,
+        copy=False,
+        index=True,
+    )
+
+    def _update_reserved_quantity(
+        self,
+        need,
+        location_id,
+        package_id=None,
+        owner_id=None,
+        strict=True,
+    ):
+        """
+        En Odoo 17, este método recibe:
+            (need, location_id, package_id=None, owner_id=None, strict=True)
+
+        Si el move fue preparado por la ruta de despacho, obligamos a Odoo
+        a reservar estrictamente en la ubicación exacta del move y no en
+        ubicaciones hijas.
+        """
+        self.ensure_one()
+
+        if (
+            self.sg_dispatch_route_processed
+            and self.picking_id
+            and self.picking_id.sg_dispatch_route_id
+            and self.location_id
+        ):
+            location_id = self.location_id
+            strict = True
+
+        return super()._update_reserved_quantity(
+            need,
+            location_id,
+            package_id=package_id,
+            owner_id=owner_id,
+            strict=strict,
+        )
+
+    def _sg_required_qty_in_product_uom(self):
+        self.ensure_one()
+        return self.product_uom._compute_quantity(
+            self.product_uom_qty,
+            self.product_id.uom_id,
+        )
+
+    def _sg_apply_dispatch_route(self, route):
+        """
+        Divide el movimiento en varios moves según las ubicaciones
+        encontradas por la ruta de despacho.
+
+        Regla:
+        - primero hijas válidas por mayor cantidad
+        - luego raíz si hace falta
+        - nunca ubicaciones excluidas
+
+        Además, asigna un orden explícito para que las operaciones detalladas
+        se vean en el mismo orden del plan.
+        """
+        self.ensure_one()
+
+        if not route:
+            return False
+
+        if self.state in ("done", "cancel"):
+            return False
+
+        if self.move_line_ids:
+            return False
+
+        if not self.product_id or self.product_id.type != "product":
+            self.sg_dispatch_route_processed = True
+            return False
+
+        product = self.product_id
+        base_rounding = product.uom_id.rounding
+        move_rounding = self.product_uom.rounding
+
+        required_qty_base = self._sg_required_qty_in_product_uom()
+        if float_is_zero(required_qty_base, precision_rounding=base_rounding):
+            self.sg_dispatch_route_processed = True
+            return False
+
+        allocation_plan = route.get_allocation_plan(product, required_qty_base)
+
+        # Si no hay plan, dejamos el move como está y solo lo marcamos.
+        # Odoo seguirá su flujo normal.
+        if not allocation_plan:
+            self.sg_dispatch_route_processed = True
+            return False
+
+        total_allocated_base = sum(line["qty"] for line in allocation_plan)
+        first_line = allocation_plan[0]
+
+        first_qty_move_uom = product.uom_id._compute_quantity(
+            first_line["qty"],
+            self.product_uom,
+            rounding_method="HALF-UP",
+        )
+
+        order_step = 10
+
+        # 1) El move original toma la primera ubicación del plan
+        self.write({
+            "location_id": first_line["location"].id,
+            "product_uom_qty": first_qty_move_uom,
+            "sg_dispatch_route_processed": True,
+            "sg_dispatch_order": order_step,
+        })
+
+        # 2) Creamos copias para las demás ubicaciones del plan
+        for index, line in enumerate(allocation_plan[1:], start=2):
+            qty_move_uom = product.uom_id._compute_quantity(
+                line["qty"],
+                self.product_uom,
+                rounding_method="HALF-UP",
+            )
+
+            if float_is_zero(qty_move_uom, precision_rounding=move_rounding):
+                continue
+
+            self.copy({
+                "location_id": line["location"].id,
+                "product_uom_qty": qty_move_uom,
+                "sg_dispatch_route_processed": True,
+                "sg_dispatch_order": index * order_step,
+            })
+
+        # 3) Si aún falta cantidad después de consumir hijas y raíz disponible,
+        # dejamos un move pendiente en la raíz para que la demanda no se pierda.
+        remaining_base = required_qty_base - total_allocated_base
+        if float_compare(remaining_base, 0.0, precision_rounding=base_rounding) > 0:
+            remaining_qty_move_uom = product.uom_id._compute_quantity(
+                remaining_base,
+                self.product_uom,
+                rounding_method="HALF-UP",
+            )
+
+            if not float_is_zero(remaining_qty_move_uom, precision_rounding=move_rounding):
+                fallback_location = route.get_root_fallback_location()
+                if fallback_location:
+                    self.copy({
+                        "location_id": fallback_location.id,
+                        "product_uom_qty": remaining_qty_move_uom,
+                        "sg_dispatch_route_processed": True,
+                        "sg_dispatch_order": (len(allocation_plan) + 1) * order_step,
+                    })
+
+        return True
+
+    def _sg_prepare_dispatch_route_before_assign(self):
+        """
+        Aplica la ruta justo antes de reservar, incluso cuando Odoo
+        llama _action_assign directamente sobre stock.move.
+        """
+        for move in self:
+            if move.state in ("done", "cancel"):
+                continue
+
+            if move.sg_dispatch_route_processed:
+                continue
+
+            if move.move_line_ids:
+                continue
+
+            picking = move.picking_id
+            if not picking:
+                continue
+
+            route = picking._sg_get_applicable_dispatch_route()
+            picking.sg_dispatch_route_id = route.id or False
+
+            if not route:
+                continue
+
+            if not move.product_id or move.product_id.type != "product":
+                move.sg_dispatch_route_processed = True
+                continue
+
+            if move.product_uom_qty <= 0:
+                move.sg_dispatch_route_processed = True
+                continue
+
+            move._sg_apply_dispatch_route(route)
+
+    def _action_assign(self, force_qty=False):
+        self._sg_prepare_dispatch_route_before_assign()
+        return super()._action_assign(force_qty=force_qty)
