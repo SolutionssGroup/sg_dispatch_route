@@ -33,7 +33,7 @@ class StockMove(models.Model):
 
         Si el move fue preparado por la ruta de despacho, obligamos a Odoo
         a reservar estrictamente en la ubicación exacta del move y no en
-        ubicaciones hijas.
+        ubicaciones hijas o padres.
         """
         self.ensure_one()
 
@@ -71,8 +71,11 @@ class StockMove(models.Model):
         - luego raíz si hace falta
         - nunca ubicaciones excluidas
 
-        Además, asigna un orden explícito para que las operaciones detalladas
-        se vean en el mismo orden del plan.
+        Importante:
+        Si NO hay disponibilidad al momento de aplicar la ruta, NO marcamos
+        el move como procesado. Esto permite que, cuando el cliente presione
+        'Comprobar disponibilidad' más adelante, el módulo vuelva a intentar
+        aplicar la ruta de despacho.
         """
         self.ensure_one()
 
@@ -100,10 +103,11 @@ class StockMove(models.Model):
 
         allocation_plan = route.get_allocation_plan(product, required_qty_base)
 
-        # Si no hay plan, dejamos el move como está y solo lo marcamos.
-        # Odoo seguirá su flujo normal.
+        # PUNTO CLAVE:
+        # Si no hay plan porque no hay disponibilidad válida, NO marcamos como procesado.
+        # Así, en flujos de proyectos/reserva manual, el sistema puede reintentar luego
+        # cuando llegue mercancía y se presione "Comprobar disponibilidad".
         if not allocation_plan:
-            self.sg_dispatch_route_processed = True
             return False
 
         total_allocated_base = sum(line["qty"] for line in allocation_plan)
