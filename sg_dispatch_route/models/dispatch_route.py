@@ -204,11 +204,20 @@ class SgDispatchRoute(models.Model):
         qty_available = sum(quants.mapped("quantity")) - sum(quants.mapped("reserved_quantity"))
         return max(qty_available, 0.0)
 
-    def get_locations_sorted_by_available_qty(self, product, locations=None):
+    def get_locations_sorted_by_dispatch_route(self, product, locations=None):
+        """
+        Devuelve ubicaciones hijas con disponibilidad, ordenadas por ruta física.
+
+        Regla acordada:
+        - Las ubicaciones hijas se toman primero.
+        - La tramería mayor se considera más lejos de despacho.
+        - El operador debe ir de más lejos a más cerca.
+        - Por eso ordenamos por complete_name descendente.
+        """
         self.ensure_one()
 
         result = []
-        locations = locations if locations is not None else self.get_candidate_locations(product)
+        locations = locations if locations is not None else self.get_child_candidate_locations(product)
 
         for location in locations:
             qty_available = self._get_available_qty_in_location(product, location)
@@ -222,22 +231,23 @@ class SgDispatchRoute(models.Model):
                     "available_qty": qty_available,
                 })
 
-        result.sort(key=lambda x: x["available_qty"], reverse=True)
+        result.sort(
+            key=lambda x: (
+                x["location"].complete_name or "",
+                x["location"].id,
+            ),
+            reverse=True,
+        )
         return result
 
     def get_allocation_plan(self, product, needed_qty):
         """
-        Plan de asignación:
+        Plan de asignación de despacho:
 
-        1) Primero usa solo ubicaciones hijas válidas, ordenadas de mayor a menor.
-        2) Si aún falta cantidad, usa la ubicación raíz al final.
-        3) Nunca usa ubicaciones excluidas.
-
-        Devuelve algo como:
-        [
-            {"location": loc_hija_1, "qty": 27.0},
-            {"location": loc_hija_2, "qty": 3.0},
-        ]
+        1) Primero usa ubicaciones hijas válidas.
+        2) Las hijas se recorren por ruta física, de más lejos a más cerca.
+        3) Si las hijas no completan la cantidad pedida, completa con la raíz/padre.
+        4) Nunca usa ubicaciones excluidas.
         """
         self.ensure_one()
 
@@ -247,9 +257,9 @@ class SgDispatchRoute(models.Model):
         remaining_qty = needed_qty
         plan = []
 
-        # 1) Hijas primero
+        # 1) Hijas primero, ordenadas por ruta física.
         child_locations = self.get_child_candidate_locations(product=product)
-        child_items = self.get_locations_sorted_by_available_qty(
+        child_items = self.get_locations_sorted_by_dispatch_route(
             product=product,
             locations=child_locations,
         )
@@ -279,7 +289,7 @@ class SgDispatchRoute(models.Model):
             ) <= 0:
                 return plan
 
-        # 2) Luego la raíz
+        # 2) Si las hijas no alcanzan, completar con la raíz/padre.
         root_location = self.get_root_fallback_location()
         if root_location:
             root_available_qty = self._get_available_qty_in_location(product, root_location)
