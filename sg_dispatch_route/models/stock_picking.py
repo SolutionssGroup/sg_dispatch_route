@@ -46,8 +46,108 @@ class StockPicking(models.Model):
                 and m.product_uom_qty > 0
             )
 
+            route_applied = False
             for move in candidate_moves:
-                move._sg_apply_dispatch_route(route)
+                if move._sg_apply_dispatch_route(route):
+                    route_applied = True
+
+            if route_applied:
+                picking._sg_resequence_dispatch_route_moves(route=route)
+
+    def _sg_resequence_dispatch_route_moves(self, route=False):
+        """
+        Reordena globalmente los movimientos del picking según la ruta física.
+
+        Objetivo:
+        - No depender del orden de las líneas de venta.
+        - Ordenar ubicaciones hijas de más lejos a más cerca.
+        - Si un producto se completa con ubicación padre, dejar esa línea
+          debajo del mismo producto.
+        - Reasignar sg_dispatch_order y sequence de forma progresiva.
+        """
+        order_step = 10
+
+        def desc_text(value):
+            return tuple(-ord(char) for char in (value or ""))
+
+        for picking in self:
+            current_route = route or picking.sg_dispatch_route_id or picking._sg_get_applicable_dispatch_route()
+            if not current_route:
+                continue
+
+            root_location = current_route.root_location_id
+
+            moves = picking.move_ids.filtered(
+                lambda m: m.state not in ("done", "cancel")
+                and m.sg_dispatch_route_processed
+                and m.product_id
+                and m.product_id.type == "product"
+            )
+
+            if not moves:
+                continue
+
+            group_best_location = {}
+
+            for move in moves:
+                location = move.location_id
+                if not location:
+                    continue
+
+                sale_line_id = move.sale_line_id.id if "sale_line_id" in move._fields and move.sale_line_id else 0
+                group_key = (move.product_id.id, sale_line_id)
+
+                is_root = bool(root_location and location.id == root_location.id)
+                if is_root:
+                    continue
+
+                location_name = location.complete_name or ""
+                current_best = group_best_location.get(group_key)
+                if current_best is None or location_name > current_best:
+                    group_best_location[group_key] = location_name
+
+            def move_sort_key(move):
+                location = move.location_id
+                location_name = location.complete_name if location else ""
+
+                sale_line_id = move.sale_line_id.id if "sale_line_id" in move._fields and move.sale_line_id else 0
+                group_key = (move.product_id.id, sale_line_id)
+
+                group_location_name = group_best_location.get(group_key)
+                is_root = bool(root_location and location and location.id == root_location.id)
+
+                if group_location_name:
+                    group_rank = 0
+                    group_location_sort = group_location_name
+                elif not is_root:
+                    group_rank = 0
+                    group_location_sort = location_name
+                else:
+                    group_rank = 1
+                    group_location_sort = ""
+
+                line_rank = 1 if is_root and group_location_name else 0
+
+                return (
+                    group_rank,
+                    desc_text(group_location_sort),
+                    group_key,
+                    line_rank,
+                    desc_text(location_name),
+                    move.sequence or 0,
+                    move.id,
+                )
+
+            sorted_moves = moves.sorted(key=move_sort_key)
+
+            next_order = order_step
+            for move in sorted_moves:
+                move.write({
+                    "sg_dispatch_order": next_order,
+                    "sequence": next_order,
+                })
+                next_order += order_step
+
 
     def action_assign(self):
         self._sg_prepare_dispatch_route_moves()

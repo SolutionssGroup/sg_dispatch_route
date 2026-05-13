@@ -208,7 +208,12 @@ class StockMove(models.Model):
         """
         Aplica la ruta justo antes de reservar, incluso cuando Odoo
         llama _action_assign directamente sobre stock.move.
+
+        Después de aplicar la ruta, resecuencia globalmente el picking para
+        que el orden final responda a la ruta física y no al orden de venta.
         """
+        pickings_to_resequence = self.env["stock.picking"]
+
         for move in self:
             if move.state in ("done", "cancel"):
                 continue
@@ -237,7 +242,11 @@ class StockMove(models.Model):
                 move.sg_dispatch_route_processed = True
                 continue
 
-            move._sg_apply_dispatch_route(route)
+            if move._sg_apply_dispatch_route(route):
+                pickings_to_resequence |= picking
+
+        for picking in pickings_to_resequence:
+            picking._sg_resequence_dispatch_route_moves()
 
     def _action_assign(self, force_qty=False):
         self._sg_prepare_dispatch_route_before_assign()
