@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<templates xml:space="preserve">
+    <t t-inherit="stock_barcode.LineComponent" t-inherit-mode="extension">
+        <xpath expr="//div[contains(@class, 'o_barcode_line')]" position="attributes">
+            <attribute name="t-att-style">
+                line.sg_current_line
+                    ? 'background-color: #ffb347 !important; border: 2px solid #ff8c00 !important;'
+                    : line.sg_worked_line
+                        ? 'background-color: #d6d6d6 !important; border: 1px solid #aaaaaa !important; opacity: 0.95;'
+                        : line.sg_active_location_line
+                            ? 'background-color: #e6f4ea !important; border-left: 4px solid #34a853 !important;'
+                            : ''
+            </attribute>
+        </xpath>
+    </t>
+</templates>

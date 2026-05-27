@@ -13,15 +13,18 @@ sg_dispatch_route.
     "license": "LGPL-3",
     "depends": [
         "stock_barcode",
-        "sg_dispatch_route"
+        "sg_dispatch_route",
     ],
     "data": [],
     "assets": {
         "web.assets_backend": [
-            "sg_barcode_dispatch_order/static/src/models/barcode_model_patch.js"
-        ]
+            "sg_barcode_dispatch_order/static/src/models/barcode_model_patch.js",
+            "sg_barcode_dispatch_order/static/src/models/barcode_picking_model_patch.js",
+            "sg_barcode_dispatch_order/static/src/scss/barcode_highlight.scss",
+            "sg_barcode_dispatch_order/static/src/xml/barcode_line_highlight.xml",
+        ],
     },
     "installable": True,
     "application": False,
-    "auto_install": False
+    "auto_install": False,
 }

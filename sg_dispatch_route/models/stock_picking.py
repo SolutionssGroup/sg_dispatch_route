@@ -46,112 +46,52 @@ class StockPicking(models.Model):
                 and m.product_uom_qty > 0
             )
 
-            route_applied = False
             for move in candidate_moves:
-                if move._sg_apply_dispatch_route(route):
-                    route_applied = True
+                move._sg_apply_dispatch_route(route)
 
-            if route_applied:
-                picking._sg_resequence_dispatch_route_moves(route=route)
-
-    def _sg_resequence_dispatch_route_moves(self, route=False):
+    def _sg_release_pending_dispatch_reservations(self):
         """
-        Reordena globalmente los movimientos del picking según la ruta física.
+        Libera reservas que queden pendientes después de validar un despacho.
 
-        Objetivo:
-        - No depender del orden de las líneas de venta.
-        - Ordenar ubicaciones hijas de más lejos a más cerca.
-        - Si un producto se completa con ubicación padre, dejar esa línea
-          debajo del mismo producto.
-        - Reasignar sg_dispatch_order y sequence de forma progresiva.
+        Objetivo operativo:
+        - La reserva solo sirve para que Barcode pueda trabajar.
+        - Lo no despachado no debe quedar secuestrado.
+        - Si se genera backorder, debe quedar sin reserva.
         """
-        order_step = 10
-
-        def desc_text(value):
-            return tuple(-ord(char) for char in (value or ""))
+        pickings_to_clean = self.env["stock.picking"]
 
         for picking in self:
-            current_route = route or picking.sg_dispatch_route_id or picking._sg_get_applicable_dispatch_route()
-            if not current_route:
-                continue
+            related_pickings = self.search([
+                ("backorder_id", "=", picking.id),
+                ("state", "not in", ("done", "cancel")),
+            ])
+            pickings_to_clean |= related_pickings
 
-            root_location = current_route.root_location_id
+            if picking.state not in ("done", "cancel"):
+                pickings_to_clean |= picking
 
-            moves = picking.move_ids.filtered(
-                lambda m: m.state not in ("done", "cancel")
-                and m.sg_dispatch_route_processed
-                and m.product_id
-                and m.product_id.type == "product"
-            )
+        moves_to_unreserve = pickings_to_clean.move_ids.filtered(
+            lambda m: m.state in ("assigned", "partially_available")
+        )
 
-            if not moves:
-                continue
+        if moves_to_unreserve:
+            moves_to_unreserve._do_unreserve()
 
-            group_best_location = {}
-
-            for move in moves:
-                location = move.location_id
-                if not location:
-                    continue
-
-                sale_line_id = move.sale_line_id.id if "sale_line_id" in move._fields and move.sale_line_id else 0
-                group_key = (move.product_id.id, sale_line_id)
-
-                is_root = bool(root_location and location.id == root_location.id)
-                if is_root:
-                    continue
-
-                location_name = location.complete_name or ""
-                current_best = group_best_location.get(group_key)
-                if current_best is None or location_name > current_best:
-                    group_best_location[group_key] = location_name
-
-            def move_sort_key(move):
-                location = move.location_id
-                location_name = location.complete_name if location else ""
-
-                sale_line_id = move.sale_line_id.id if "sale_line_id" in move._fields and move.sale_line_id else 0
-                group_key = (move.product_id.id, sale_line_id)
-
-                group_location_name = group_best_location.get(group_key)
-                is_root = bool(root_location and location and location.id == root_location.id)
-
-                if group_location_name:
-                    group_rank = 0
-                    group_location_sort = group_location_name
-                elif not is_root:
-                    group_rank = 0
-                    group_location_sort = location_name
-                else:
-                    group_rank = 1
-                    group_location_sort = ""
-
-                line_rank = 1 if is_root and group_location_name else 0
-
-                return (
-                    group_rank,
-                    desc_text(group_location_sort),
-                    group_key,
-                    line_rank,
-                    desc_text(location_name),
-                    move.sequence or 0,
-                    move.id,
-                )
-
-            sorted_moves = moves.sorted(key=move_sort_key)
-
-            next_order = order_step
-            for move in sorted_moves:
-                move.write({
-                    "sg_dispatch_order": next_order,
-                    "sequence": next_order,
-                })
-                next_order += order_step
-
+        return True
 
     def action_assign(self):
         self._sg_prepare_dispatch_route_moves()
         return super().action_assign()
+
+    def button_validate(self):
+        result = super().button_validate()
+
+        # Si Odoo abre wizard de backorder, la limpieza se hará al confirmar el wizard.
+        if isinstance(result, dict):
+            return result
+
+        self._sg_release_pending_dispatch_reservations()
+        return result
 
     def _get_stock_barcode_data(self):
         """
@@ -166,7 +106,6 @@ class StockPicking(models.Model):
         move_line_records = records.get("stock.move.line", [])
         picking_records = records.get("stock.picking", [])
 
-        # Ordenar las líneas que se envían al barcode.
         move_line_records_sorted = sorted(
             move_line_records,
             key=lambda ml: (
@@ -176,8 +115,6 @@ class StockPicking(models.Model):
         )
         records["stock.move.line"] = move_line_records_sorted
 
-        # Reordenar también el listado de move_line_ids dentro del picking,
-        # para que el frontend reciba el mismo orden desde el registro principal.
         order_map = {
             ml.get("id"): index
             for index, ml in enumerate(move_line_records_sorted)

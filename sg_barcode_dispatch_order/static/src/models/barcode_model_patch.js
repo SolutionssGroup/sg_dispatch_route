@@ -5,6 +5,17 @@ import BarcodeModel from "@stock_barcode/models/barcode_model";
 
 patch(BarcodeModel.prototype, {
     _sortingMethod(l1, l2) {
+        const activeLocationId = this.sg_active_source_location_id;
+
+        const l1InActiveLocation = activeLocationId && l1.location_id?.id === activeLocationId;
+        const l2InActiveLocation = activeLocationId && l2.location_id?.id === activeLocationId;
+
+        if (l1InActiveLocation && !l2InActiveLocation) {
+            return -1;
+        } else if (!l1InActiveLocation && l2InActiveLocation) {
+            return 1;
+        }
+
         const order1 = Number.isFinite(l1.sg_dispatch_order) ? l1.sg_dispatch_order : 999999;
         const order2 = Number.isFinite(l2.sg_dispatch_order) ? l2.sg_dispatch_order : 999999;
 
