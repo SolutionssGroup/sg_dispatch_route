@@ -1,3 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_sg_dispatch_route_internal_read,access.sg.dispatch.route.internal.read,model_sg_dispatch_route,base.group_user,1,0,0,0
 access_sg_dispatch_route_user,access.sg.dispatch.route.user,model_sg_dispatch_route,stock.group_stock_manager,1,1,1,1
+access_sg_dispatch_route_exclude_line_internal_read,access.sg.dispatch.route.exclude.line.internal.read,model_sg_dispatch_route_exclude_line,base.group_user,1,0,0,0
 access_sg_dispatch_route_exclude_line_user,access.sg.dispatch.route.exclude.line.user,model_sg_dispatch_route_exclude_line,stock.group_stock_manager,1,1,1,1
+access_sg_dispatch_reservation_cleanup_wizard_manager,access.sg.dispatch.reservation.cleanup.wizard.manager,model_sg_dispatch_reservation_cleanup_wizard,stock.group_stock_manager,1,1,1,1

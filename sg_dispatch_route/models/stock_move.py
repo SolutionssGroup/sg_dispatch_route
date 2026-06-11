@@ -53,6 +53,45 @@ class StockMove(models.Model):
             self.product_id.uom_id,
         )
 
+    def _sg_get_manual_cleanup_reserved_qty(self):
+        self.ensure_one()
+
+        move_lines = self.move_line_ids
+        if "picked" in move_lines._fields:
+            move_lines = move_lines.filtered(lambda ml: not ml.picked)
+
+        reserved_qty = sum(move_lines.mapped("quantity"))
+        if self.product_id and self.product_id.uom_id != self.product_uom:
+            reserved_qty = self.product_id.uom_id._compute_quantity(
+                reserved_qty,
+                self.product_uom,
+                rounding_method="HALF-UP",
+            )
+
+        return reserved_qty
+
+    def _sg_manual_reservation_cleanup_summary_lines(self):
+        summary_lines = []
+        for move in self:
+            picking = move.picking_id
+            sale_reference = (
+                picking.sale_id.name
+                if "sale_id" in picking._fields and picking.sale_id
+                else picking.origin
+                or picking.name
+            )
+            summary_lines.append({
+                "picking_id": picking.id,
+                "picking": picking.name,
+                "sale_reference": sale_reference,
+                "product": move.product_id.display_name,
+                "location": move.location_id.display_name,
+                "reserved_qty": move._sg_get_manual_cleanup_reserved_qty(),
+                "uom": move.product_uom.name,
+                "move_state": move.state,
+            })
+        return summary_lines
+
     def _sg_apply_dispatch_route(self, route):
         self.ensure_one()
 

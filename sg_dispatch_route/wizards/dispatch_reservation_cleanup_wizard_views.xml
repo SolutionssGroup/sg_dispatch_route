@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_sg_dispatch_reservation_cleanup_wizard_form" model="ir.ui.view">
+        <field name="name">sg.dispatch.reservation.cleanup.wizard.form</field>
+        <field name="model">sg.dispatch.reservation.cleanup.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Limpieza controlada de reservas">
+                <group>
+                    <group>
+                        <field name="company_id"/>
+                        <field name="picking_type_code"/>
+                        <field name="dry_run" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="picking_ids" widget="many2many_tags"/>
+                    </group>
+                </group>
+                <group>
+                    <field name="summary" nolabel="1" readonly="1" widget="text"/>
+                </group>
+                <footer>
+                    <button
+                        name="action_simulate"
+                        type="object"
+                        string="Simular"
+                        class="btn-primary"
+                    />
+                    <button
+                        name="action_execute"
+                        type="object"
+                        string="Liberar reservas"
+                        class="btn-secondary"
+                        confirm="Se liberarán reservas de los traslados elegibles. Esta acción no toca cantidades hechas ni traslados hechos/cancelados. ¿Deseas continuar?"
+                    />
+                    <button string="Cerrar" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_sg_dispatch_reservation_cleanup_wizard" model="ir.actions.act_window">
+        <field name="name">Limpieza de reservas</field>
+        <field name="res_model">sg.dispatch.reservation.cleanup.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem
+        id="menu_sg_dispatch_reservation_cleanup_wizard"
+        name="Limpieza de reservas"
+        parent="sg_dispatch_route.menu_sg_dispatch_route_root"
+        action="action_sg_dispatch_reservation_cleanup_wizard"
+        sequence="20"
+        groups="stock.group_stock_manager"
+    />
+</odoo>

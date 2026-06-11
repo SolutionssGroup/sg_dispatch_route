@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_picking_tree_sg_sale_order_display_name" model="ir.ui.view">
+        <field name="name">stock.picking.tree.sg.sale.order.display.name</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.vpicktree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree/field[@name='name']" position="replace">
+                <field name="sg_sale_order_display_name" decoration-bf="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_picking_kanban_sg_sale_order_display_name" model="ir.ui.view">
+        <field name="name">stock.picking.kanban.sg.sale.order.display.name</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.stock_picking_kanban"/>
+        <field name="priority">200</field>
+        <field name="arch" type="xml">
+            <xpath expr="//kanban/field[@name='name']" position="after">
+                <field name="sg_sale_order_display_name"/>
+            </xpath>
+            <xpath expr="//field[@name='priority'][@widget='priority']" position="replace"/>
+            <xpath expr="//t[@t-esc='record.name.value']" position="attributes">
+                <attribute name="t-esc">record.sg_sale_order_display_name.value</attribute>
+            </xpath>
+            <xpath expr="//field[@name='activity_ids'][@widget='kanban_activity']" position="replace"/>
+        </field>
+    </record>
+
+    <record id="view_picking_kanban_barcode_sg_hide_open_picking_button" model="ir.ui.view">
+        <field name="name">stock.picking.kanban.barcode.sg.hide.open.picking.button</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock_barcode.picking_view_kanban_inherit_barcode"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_open_picking']" position="replace"/>
+        </field>
+    </record>
+</odoo>

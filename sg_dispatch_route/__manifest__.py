@@ -24,8 +24,10 @@ Permite:
         "views/menu.xml",
         "views/dispatch_route_views.xml",
         "views/stock_location_views.xml",
+        "views/stock_picking_views.xml",
         "views/stock_picking_type_views.xml",
         "views/stock_move_line_views.xml",
+        "wizards/dispatch_reservation_cleanup_wizard_views.xml",
         "data/sequence.xml",
     ],
     "demo": [
