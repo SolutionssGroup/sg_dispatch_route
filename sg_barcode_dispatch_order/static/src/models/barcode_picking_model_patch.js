@@ -24,6 +24,104 @@ patch(BarcodePickingModel.prototype, {
         return super.shouldSplitLine(line);
     },
 
+    _sortingMethod(l1, l2) {
+        const activeLocationId = this.sg_active_source_location_id;
+        const l1InActiveLocation = activeLocationId && l1.location_id?.id === activeLocationId;
+        const l2InActiveLocation = activeLocationId && l2.location_id?.id === activeLocationId;
+
+        if (l1InActiveLocation && !l2InActiveLocation) {
+            return -1;
+        } else if (!l1InActiveLocation && l2InActiveLocation) {
+            return 1;
+        }
+
+        if (l1InActiveLocation && l2InActiveLocation) {
+            if (l1.sg_current_line && !l2.sg_current_line) {
+                return -1;
+            } else if (!l1.sg_current_line && l2.sg_current_line) {
+                return 1;
+            }
+
+            const order1 = Number.isFinite(l1.sg_dispatch_order) ? l1.sg_dispatch_order : 999999;
+            const order2 = Number.isFinite(l2.sg_dispatch_order) ? l2.sg_dispatch_order : 999999;
+
+            if (order1 < order2) {
+                return -1;
+            } else if (order1 > order2) {
+                return 1;
+            }
+
+            return (l1.id || 0) - (l2.id || 0);
+        }
+
+        return super._sortingMethod(l1, l2);
+    },
+
+    _sgApplyActiveLocationFlags(locationId) {
+        for (const line of this.currentState?.lines || []) {
+            line.sg_active_location_line = Boolean(
+                locationId && line.location_id?.id === locationId
+            );
+        }
+    },
+
+    _sgFindCurrentProductLine(productId) {
+        const activeLocationId = this.sg_active_source_location_id;
+        const selectedLine = this.selectedLine;
+
+        if (
+            selectedLine?.product_id?.id === productId &&
+            selectedLine.location_id?.id === activeLocationId
+        ) {
+            return selectedLine;
+        }
+
+        return (this.currentState?.lines || []).find(
+            (line) =>
+                line.product_id?.id === productId &&
+                line.location_id?.id === activeLocationId
+        );
+    },
+
+    _sgGetProductLocationLines(productId) {
+        const activeLocationId = this.sg_active_source_location_id;
+        return (this.currentState?.lines || []).filter(
+            (line) =>
+                line.product_id?.id === productId &&
+                line.location_id?.id === activeLocationId
+        );
+    },
+
+    _sgGetPendingLine(lines, scannedQty = 1) {
+        const pendingLines = lines.filter(
+            (line) => this.getQtyDemand(line) > this.getQtyDone(line)
+        );
+        return pendingLines.find(
+            (line) => scannedQty <= this.getQtyDemand(line) - this.getQtyDone(line)
+        ) || pendingLines[0];
+    },
+
+    _sgGetScannedQty(barcodeData) {
+        if (barcodeData.packaging) {
+            return this._retrievePackagingData(barcodeData).quantity || 1;
+        }
+        return barcodeData.quantity || 1;
+    },
+
+    _sgSetCurrentLine(currentLine) {
+        for (const line of this.currentState?.lines || []) {
+            if (line === currentLine) {
+                line.sg_current_line = true;
+                line.sg_worked_line = false;
+            } else if (line.sg_current_line) {
+                line.sg_current_line = false;
+                line.sg_worked_line = true;
+            } else {
+                line.sg_current_line = false;
+            }
+        }
+    },
+
     async _processBarcode(barcode) {
         const barcodeData = await this._parseBarcode(barcode);
 
@@ -51,6 +149,7 @@ patch(BarcodePickingModel.prototype, {
                 }
 
                 this.sg_active_source_location_id = barcodeData.location.id;
+                this._sgApplyActiveLocationFlags(this.sg_active_source_location_id);
 
                 let result;
                 this._sg_block_split_on_location_scan = true;
@@ -59,6 +158,8 @@ patch(BarcodePickingModel.prototype, {
                 } finally {
                     this._sg_block_split_on_location_scan = false;
                 }
+
+                this._sgApplyActiveLocationFlags(this.sg_active_source_location_id);
 
                 const sorter = this._sortingMethod.bind(this);
 
@@ -100,6 +201,43 @@ patch(BarcodePickingModel.prototype, {
                     { type: "danger" }
                 );
                 return;
+            }
+
+            if (barcodeData.product && this.sg_active_source_location_id) {
+                const productLines = this._sgGetProductLocationLines(barcodeData.product.id);
+                const scannedQty = this._sgGetScannedQty(barcodeData);
+                const pendingLine = this._sgGetPendingLine(productLines, scannedQty);
+
+                if (!pendingLine) {
+                    this.notification(
+                        _t("La cantidad esperada de este producto en la ubicación escaneada ya está completa."),
+                        { type: "danger" }
+                    );
+                    return;
+                }
+
+                const remainingQty = this.getQtyDemand(pendingLine) - this.getQtyDone(pendingLine);
+
+                if (scannedQty > remainingQty) {
+                    this.notification(
+                        _t("La cantidad escaneada excede la cantidad pendiente de este producto en la ubicación escaneada."),
+                        { type: "danger" }
+                    );
+                    return;
+                }
+
+                this.selectedLineVirtualId = pendingLine.virtual_id;
+
+                const result = await super._processBarcode(barcode);
+                const currentLine = this._sgFindCurrentProductLine(barcodeData.product.id);
+
+                if (currentLine) {
+                    this._sgApplyActiveLocationFlags(this.sg_active_source_location_id);
+                    this._sgSetCurrentLine(currentLine);
+                    this.trigger("update");
+                }
+
+                return result;
             }
         }
 
