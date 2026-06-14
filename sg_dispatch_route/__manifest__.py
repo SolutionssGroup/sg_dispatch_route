@@ -29,6 +29,7 @@ Permite:
         "views/stock_move_line_views.xml",
         "wizards/dispatch_reservation_cleanup_wizard_views.xml",
         "data/sequence.xml",
+        "data/reservation_config.xml",
     ],
     "demo": [
         "demo/demo.xml",
