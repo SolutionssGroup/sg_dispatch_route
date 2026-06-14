@@ -23,6 +23,8 @@ class StockMove(models.Model):
         self,
         need,
         location_id,
+        quant_ids=None,
+        lot_id=None,
         package_id=None,
         owner_id=None,
         strict=True,
@@ -39,8 +41,10 @@ class StockMove(models.Model):
             strict = True
 
         return super()._update_reserved_quantity(
-            need,
-            location_id,
+            need=need,
+            location_id=location_id,
+            quant_ids=quant_ids,
+            lot_id=lot_id,
             package_id=package_id,
             owner_id=owner_id,
             strict=strict,
@@ -111,6 +115,8 @@ class StockMove(models.Model):
         product = self.product_id
         base_rounding = product.uom_id.rounding
         move_rounding = self.product_uom.rounding
+        original_location = self.location_id
+        original_product_uom_qty = self.product_uom_qty
 
         required_qty_base = self._sg_required_qty_in_product_uom()
         if float_is_zero(required_qty_base, precision_rounding=base_rounding):
@@ -122,14 +128,32 @@ class StockMove(models.Model):
         if not allocation_plan:
             return False
 
-        total_allocated_base = sum(line["qty"] for line in allocation_plan)
-        first_line = allocation_plan[0]
+        planned_lines = []
+        remaining_qty_move_uom = original_product_uom_qty
+        for line in allocation_plan:
+            qty_move_uom = product.uom_id._compute_quantity(
+                line["qty"],
+                self.product_uom,
+                rounding_method="HALF-UP",
+            )
+            qty_move_uom = min(qty_move_uom, remaining_qty_move_uom)
+            if float_is_zero(qty_move_uom, precision_rounding=move_rounding):
+                continue
 
-        first_qty_move_uom = product.uom_id._compute_quantity(
-            first_line["qty"],
-            self.product_uom,
-            rounding_method="HALF-UP",
-        )
+            planned_lines.append((line, qty_move_uom))
+            remaining_qty_move_uom -= qty_move_uom
+            if float_compare(
+                remaining_qty_move_uom,
+                0.0,
+                precision_rounding=move_rounding,
+            ) <= 0:
+                remaining_qty_move_uom = 0.0
+                break
+
+        if not planned_lines:
+            return False
+
+        first_line, first_qty_move_uom = planned_lines[0]
 
         product_block = self.product_id.id * 100000
         order_step = 10
@@ -159,16 +183,7 @@ class StockMove(models.Model):
             "sg_dispatch_order": _get_dispatch_order(first_line, 1),
         })
 
-        for index, line in enumerate(allocation_plan[1:], start=2):
-            qty_move_uom = product.uom_id._compute_quantity(
-                line["qty"],
-                self.product_uom,
-                rounding_method="HALF-UP",
-            )
-
-            if float_is_zero(qty_move_uom, precision_rounding=move_rounding):
-                continue
-
+        for index, (line, qty_move_uom) in enumerate(planned_lines[1:], start=2):
             self.copy({
                 "location_id": line["location"].id,
                 "product_uom_qty": qty_move_uom,
@@ -176,29 +191,23 @@ class StockMove(models.Model):
                 "sg_dispatch_order": _get_dispatch_order(line, index),
             })
 
-        remaining_base = required_qty_base - total_allocated_base
-        if float_compare(remaining_base, 0.0, precision_rounding=base_rounding) > 0:
-            remaining_qty_move_uom = product.uom_id._compute_quantity(
-                remaining_base,
-                self.product_uom,
-                rounding_method="HALF-UP",
-            )
+        if not float_is_zero(
+            remaining_qty_move_uom,
+            precision_rounding=move_rounding,
+        ):
+            fallback_location = route.get_root_fallback_location() or original_location
+            fallback_index = len(planned_lines) + 1
 
-            if not float_is_zero(remaining_qty_move_uom, precision_rounding=move_rounding):
-                fallback_location = route.get_root_fallback_location()
-                if fallback_location:
-                    fallback_index = len(allocation_plan) + 1
-
-                    self.copy({
-                        "location_id": fallback_location.id,
-                        "product_uom_qty": remaining_qty_move_uom,
-                        "sg_dispatch_route_processed": True,
-                        "sg_dispatch_order": (
-                            product_block
-                            + parent_offset
-                            + (fallback_index * order_step)
-                        ),
-                    })
+            self.copy({
+                "location_id": fallback_location.id,
+                "product_uom_qty": remaining_qty_move_uom,
+                "sg_dispatch_route_processed": True,
+                "sg_dispatch_order": (
+                    product_block
+                    + parent_offset
+                    + (fallback_index * order_step)
+                ),
+            })
 
         return True
 
