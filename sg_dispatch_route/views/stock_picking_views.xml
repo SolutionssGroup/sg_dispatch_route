@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <record id="sg_stock_picking_internal_search_no_responsible_todo" model="ir.ui.view">
+        <field name="name">stock.picking.internal.search.no.responsible.todo.inprotec</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_internal_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='to_do_transfers']" position="attributes">
+                <attribute name="domain">[('state', 'not in', ['done', 'cancel'])]</attribute>
+            </xpath>
+        </field>
+    </record>
+
     <record id="view_picking_tree_sg_sale_order_display_name" model="ir.ui.view">
         <field name="name">stock.picking.tree.sg.sale.order.display.name</field>
         <field name="model">stock.picking</field>

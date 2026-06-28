@@ -59,8 +59,15 @@ class StockPickingType(models.Model):
             "search_default_available",
             "search_default_to_do_transfers",
             "search_default_picking_type_id",
+            "search_default_my_transfers",
+            "search_default_my_picking",
+            "search_default_user_id",
+            "search_default_responsible",
+            "search_default_assigned_to_me",
         ):
             context.pop(search_default, None)
+
+        context.pop("default_user_id", None)
 
         context.update({
             "default_picking_type_id": self.id,

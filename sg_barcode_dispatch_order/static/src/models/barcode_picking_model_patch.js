@@ -122,6 +122,28 @@ patch(BarcodePickingModel.prototype, {
         }
     },
 
+    _sgScrollCurrentLineToTop() {
+        setTimeout(() => {
+            const page = document.querySelector(".o_barcode_lines");
+            const currentLine = document.querySelector(
+                ".o_barcode_line.sg_scanned_line, .o_barcode_line.o_selected, .o_barcode_line.o_highlight"
+            );
+            if (!page || !currentLine) {
+                return;
+            }
+
+            const pageRect = page.getBoundingClientRect();
+            const lineRect = currentLine.getBoundingClientRect();
+            const top = page.scrollTop + lineRect.top - pageRect.top - 8;
+
+            page.scrollTo({
+                top: Math.max(top, 0),
+                left: 0,
+                behavior: "smooth",
+            });
+        }, 100);
+    },
+
     async _processBarcode(barcode) {
         const barcodeData = await this._parseBarcode(barcode);
 
@@ -235,6 +257,7 @@ patch(BarcodePickingModel.prototype, {
                     this._sgApplyActiveLocationFlags(this.sg_active_source_location_id);
                     this._sgSetCurrentLine(currentLine);
                     this.trigger("update");
+                    this._sgScrollCurrentLineToTop();
                 }
 
                 return result;
