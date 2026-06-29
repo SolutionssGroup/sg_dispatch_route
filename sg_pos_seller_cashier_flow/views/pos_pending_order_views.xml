@@ -4,13 +4,22 @@
         <field name="name">sg.pos.pending.order.tree</field>
         <field name="model">sg.pos.pending.order</field>
         <field name="arch" type="xml">
-            <tree>
+            <tree decoration-warning="state == 'sent'"
+                  decoration-info="state == 'in_cashier'"
+                  decoration-muted="state == 'returned'"
+                  decoration-success="state == 'paid'"
+                  decoration-danger="state == 'cancel'">
                 <field name="name"/>
                 <field name="customer_note_name"/>
                 <field name="seller_id"/>
                 <field name="seller_pos_config_id"/>
                 <field name="amount_total"/>
-                <field name="state"/>
+                <field name="state" widget="badge"
+                       decoration-warning="state == 'sent'"
+                       decoration-info="state == 'in_cashier'"
+                       decoration-muted="state == 'returned'"
+                       decoration-success="state == 'paid'"
+                       decoration-danger="state == 'cancel'"/>
                 <field name="create_date"/>
             </tree>
         </field>
@@ -64,6 +73,21 @@
         <field name="name">Pedidos pendientes POS</field>
         <field name="res_model">sg.pos.pending.order</field>
         <field name="view_mode">tree,form</field>
+        <field name="view_id" ref="view_sg_pos_pending_order_tree"/>
+    </record>
+
+    <record id="action_sg_pos_pending_order_tree_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">tree</field>
+        <field name="view_id" ref="view_sg_pos_pending_order_tree"/>
+        <field name="act_window_id" ref="action_sg_pos_pending_order"/>
+    </record>
+
+    <record id="action_sg_pos_pending_order_form_view" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_sg_pos_pending_order_form"/>
+        <field name="act_window_id" ref="action_sg_pos_pending_order"/>
     </record>
 
     <menuitem id="menu_sg_pos_pending_order"

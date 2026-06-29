@@ -1,5 +1,6 @@
 from odoo import fields, models
 from odoo.exceptions import UserError
+from odoo.tools import float_compare
 
 
 class PosOrder(models.Model):
@@ -38,3 +39,34 @@ class PosOrder(models.Model):
             vals["cashier_pos_config_id"] = config.id
         pending_order.write(vals)
         return order_id
+
+    def _sg_pending_order_line_by_pos_line(self):
+        self.ensure_one()
+        if not self.sg_pending_order_id:
+            return {}
+
+        pending_lines = self.sg_pending_order_id.line_ids.sorted("id")
+        pending_by_pos_line = {}
+        used_pending_line_ids = set()
+        for pos_line in self.lines.sorted("id"):
+            pending_line = pending_lines.filtered(
+                lambda line: line.id not in used_pending_line_ids
+                and self._sg_pending_line_matches_pos_line(line, pos_line)
+            )[:1]
+            if pending_line:
+                pending_by_pos_line[pos_line.id] = pending_line
+                used_pending_line_ids.add(pending_line.id)
+        return pending_by_pos_line
+
+    def _sg_pending_line_matches_pos_line(self, pending_line, pos_line):
+        self.ensure_one()
+        product = pos_line.product_id
+        qty_rounding = product.uom_id.rounding
+        currency_rounding = self.currency_id.rounding
+        discount_rounding = 0.00001
+        return (
+            pending_line.product_id == product
+            and float_compare(pending_line.qty, pos_line.qty, precision_rounding=qty_rounding) == 0
+            and float_compare(pending_line.price_unit, pos_line.price_unit, precision_rounding=currency_rounding) == 0
+            and float_compare(pending_line.discount, pos_line.discount, precision_rounding=discount_rounding) == 0
+        )

@@ -64,6 +64,7 @@ export class PendingOrdersButton extends Component {
         const currentOrder = this.pos.get_order();
         const order = currentOrder?.get_orderlines().length ? this.pos.add_new_order() : currentOrder || this.pos.add_new_order();
         order.sg_pending_order_id = pendingOrder.id;
+        order.sg_customer_note_name = pendingOrder.customer_note_name || "";
 
         if (pendingOrder.partner_id) {
             let partner = this.pos.db.get_partner_by_id(pendingOrder.partner_id);
@@ -86,6 +87,12 @@ export class PendingOrdersButton extends Component {
                 price: line.price_unit,
                 discount: line.discount,
                 merge: false,
+                sg_skip_location_suggestion: true,
+                sg_suggested_location: {
+                    location_id: line.location_id,
+                    location_name: line.location_name,
+                    available_qty: 0,
+                },
             });
         }
     }
@@ -134,6 +141,7 @@ export class ReturnedOrdersButton extends Component {
         const currentOrder = this.pos.get_order();
         const order = currentOrder?.get_orderlines().length ? this.pos.add_new_order() : currentOrder || this.pos.add_new_order();
         order.sg_pending_order_id = returnedOrder.id;
+        order.sg_customer_note_name = returnedOrder.customer_note_name || "";
 
         if (returnedOrder.partner_id) {
             let partner = this.pos.db.get_partner_by_id(returnedOrder.partner_id);
@@ -218,5 +226,39 @@ patch(Order.prototype, {
         const json = super.export_as_JSON(...arguments);
         json.sg_pending_order_id = this.sg_pending_order_id || false;
         return json;
+    },
+
+    removeOrderline(line) {
+        const result = super.removeOrderline(...arguments);
+        this.sg_release_pending_order_if_empty();
+        return result;
+    },
+
+    async sg_release_pending_order_if_empty() {
+        if (
+            this.pos.config.sg_pos_flow_role !== "cashier" ||
+            !this.sg_pending_order_id ||
+            this.get_orderlines().length
+        ) {
+            return;
+        }
+        const pendingOrderId = this.sg_pending_order_id;
+        this.sg_pending_order_id = false;
+        try {
+            await this.env.services.orm.call("sg.pos.pending.order", "release_from_cashier", [
+                pendingOrderId,
+                this.pos.config.id,
+            ]);
+            this.env.services.pos_notification.add(
+                _t("Pedido liberado y devuelto a pendientes"),
+                3000
+            );
+        } catch (error) {
+            this.sg_pending_order_id = pendingOrderId;
+            this.env.services.pos_notification.add(
+                error.message || _t("No se pudo liberar el pedido pendiente."),
+                5000
+            );
+        }
     },
 });

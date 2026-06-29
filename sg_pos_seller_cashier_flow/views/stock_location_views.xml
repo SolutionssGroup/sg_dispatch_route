@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_location_form_pos_pick_priority" model="ir.ui.view">
+        <field name="name">stock.location.form.pos.pick.priority</field>
+        <field name="model">stock.location</field>
+        <field name="inherit_id" ref="stock.view_location_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='additional_info']" position="inside">
+                <field name="sg_pos_pick_priority" invisible="usage != 'internal'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_location_tree_pos_pick_priority" model="ir.ui.view">
+        <field name="name">stock.location.tree.pos.pick.priority</field>
+        <field name="model">stock.location</field>
+        <field name="inherit_id" ref="stock.view_location_tree2"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='usage']" position="after">
+                <field name="sg_pos_pick_priority" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -52,7 +52,9 @@ class PosPendingOrder(models.Model):
                     "qty": line.qty,
                     "price_unit": line.price_unit,
                     "discount": line.discount,
-                }
+                    "location_id": line.location_id.id or False,
+                    "location_name": line.location_id.complete_name or line.location_id.display_name or "",
+                        }
                 for line in self.line_ids
             ]
         return values
@@ -154,6 +156,33 @@ class PosPendingOrder(models.Model):
         return True
 
     @api.model
+    def release_from_cashier(self, pending_order_id, cashier_pos_config_id=False):
+        config = self.env["pos.config"].browse(cashier_pos_config_id)
+        if not config.exists():
+            raise UserError("No se encontró la configuración POS de Caja.")
+        if config.sg_pos_flow_role != "cashier":
+            raise UserError("Solo un POS con rol Caja puede liberar pedidos pendientes.")
+
+        pending_order = self.browse(pending_order_id)
+        if not pending_order.exists():
+            raise UserError("No se encontró el pedido pendiente.")
+        pending_order.invalidate_recordset(["state", "cashier_pos_config_id"])
+        if pending_order.state == "paid":
+            raise UserError("Un pedido facturado no se puede liberar.")
+        if pending_order.state == "cancel":
+            raise UserError("Un pedido cancelado no se puede liberar.")
+        if pending_order.state != "in_cashier":
+            return True
+
+        pending_order.write(
+            {
+                "state": "sent",
+                "cashier_pos_config_id": False,
+            }
+        )
+        return True
+
+    @api.model
     def create_from_pos_order_data(self, order_data):
         config = self.env["pos.config"].browse(order_data.get("seller_pos_config_id"))
         if not config.exists():
@@ -180,6 +209,7 @@ class PosPendingOrder(models.Model):
                         "price_unit": line.get("price_unit") or 0.0,
                         "discount": line.get("discount") or 0.0,
                         "product_uom_id": line.get("product_uom_id") or product.uom_id.id,
+                        "location_id": line.get("location_id") or False,
                         "subtotal": line.get("subtotal") or 0.0,
                     },
                 )

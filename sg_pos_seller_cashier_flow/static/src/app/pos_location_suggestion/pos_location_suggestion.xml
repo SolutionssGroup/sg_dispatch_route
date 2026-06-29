@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="sg_pos_seller_cashier_flow.OrderlineLocationSuggestion"
+       t-inherit="point_of_sale.Orderline"
+       t-inherit-mode="extension">
+        <xpath expr="//ul[hasclass('info-list')]" position="inside">
+            <li t-if="line.sgSuggestedLocationName"
+                class="sg-pos-location-suggestion w-100 p-2 my-1 rounded text-bg-success text-success bg-opacity-25 text-break">
+                <div>
+                    <i class="fa fa-map-marker me-1" role="img" aria-label="Ubicación" title="Ubicación"/>
+                    <span class="fw-bolder">Ubicación:</span>
+                    <t t-esc="line.sgSuggestedLocationName"/>
+                </div>
+                <div>
+                    <i class="fa fa-cubes me-1" role="img" aria-label="Disponible" title="Disponible"/>
+                    <span class="fw-bolder">Disponible:</span>
+                    <t t-esc="line.sgSuggestedLocationQty"/>
+                </div>
+            </li>
+        </xpath>
+    </t>
+</templates>

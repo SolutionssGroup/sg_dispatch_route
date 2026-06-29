@@ -3,8 +3,53 @@
 import { _t } from "@web/core/l10n/translation";
 import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { patch } from "@web/core/utils/patch";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
+import { Order } from "@point_of_sale/app/store/models";
 import { usePos } from "@point_of_sale/app/store/pos_hook";
+
+patch(Order.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.sg_customer_note_name = this.sg_customer_note_name || "";
+    },
+
+    init_from_JSON(json) {
+        super.init_from_JSON(...arguments);
+        this.sg_customer_note_name = json.sg_customer_note_name || "";
+    },
+
+    export_as_JSON() {
+        const json = super.export_as_JSON(...arguments);
+        json.sg_customer_note_name = this.sg_customer_note_name || "";
+        return json;
+    },
+
+    set_sg_customer_note_name(name) {
+        this.sg_customer_note_name = name || "";
+        this.save_to_db();
+    },
+});
+
+export class CustomerNoteNameControl extends Component {
+    static template = "sg_pos_seller_cashier_flow.CustomerNoteNameControl";
+
+    setup() {
+        this.pos = usePos();
+    }
+
+    get currentOrder() {
+        return this.pos.get_order();
+    }
+
+    get customerNoteName() {
+        return this.currentOrder?.sg_customer_note_name || "";
+    }
+
+    onInput(event) {
+        this.currentOrder?.set_sg_customer_note_name(event.target.value);
+    }
+}
 
 export class SendToCashierButton extends Component {
     static template = "sg_pos_seller_cashier_flow.SendToCashierButton";
@@ -26,7 +71,7 @@ export class SendToCashierButton extends Component {
         await this.orm.call("sg.pos.pending.order", "create_from_pos_order_data", [
             {
                 pending_order_id: order.sg_pending_order_id || false,
-                customer_note_name: "",
+                customer_note_name: order.sg_customer_note_name || "",
                 partner_id: order.get_partner()?.id || false,
                 seller_pos_config_id: this.pos.config.id,
                 amount_total: order.get_total_with_tax(),
@@ -38,6 +83,7 @@ export class SendToCashierButton extends Component {
                         price_unit: line.get_unit_price(),
                         discount: line.get_discount(),
                         product_uom_id: product.uom_id?.[0] || false,
+                        location_id: line.sg_suggested_location_id || false,
                         subtotal: line.get_unit_price() * line.get_quantity() * (1 - line.get_discount() / 100),
                     };
                 }),
@@ -49,6 +95,13 @@ export class SendToCashierButton extends Component {
         this.notification.add(_t("Pedido enviado a Caja"), 3000);
     }
 }
+
+ProductScreen.addControlButton({
+    component: CustomerNoteNameControl,
+    condition: function () {
+        return this.pos.config.sg_pos_flow_role === "seller";
+    },
+});
 
 ProductScreen.addControlButton({
     component: SendToCashierButton,
