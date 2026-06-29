@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_pos_config_form_sg_seller_cashier_flow" model="ir.ui.view">
+        <field name="name">pos.config.form.sg.seller.cashier.flow</field>
+        <field name="model">pos.config</field>
+        <field name="inherit_id" ref="point_of_sale.pos_config_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='module_pos_hr']/ancestor::setting[1]" position="before">
+                <setting string="Flujo Vendedores / Caja" help="Define si este Punto de Venta funciona como vendedor o como caja.">
+                    <field name="sg_pos_flow_role"/>
+                </setting>
+            </xpath>
+        </field>
+    </record>
+</odoo>

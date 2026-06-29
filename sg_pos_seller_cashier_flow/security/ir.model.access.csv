@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_sg_pos_pending_order_user,sg.pos.pending.order user,model_sg_pos_pending_order,point_of_sale.group_pos_user,1,1,1,0
+access_sg_pos_pending_order_line_user,sg.pos.pending.order.line user,model_sg_pos_pending_order_line,point_of_sale.group_pos_user,1,1,1,1

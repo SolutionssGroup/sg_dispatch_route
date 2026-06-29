@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="sg_pos_seller_cashier_flow.PendingOrdersButton">
+        <div class="control-button btn btn-light rounded-0 fw-bolder" t-on-click="onClick">
+            <i class="fa fa-list-ul" role="img" aria-label="Pedidos Pendientes" title="Pedidos Pendientes"/>
+            Pedidos Pendientes
+        </div>
+    </t>
+
+    <t t-name="sg_pos_seller_cashier_flow.ReturnedOrdersButton">
+        <div class="control-button btn btn-light rounded-0 fw-bolder" t-on-click="onClick">
+            <i class="fa fa-reply" role="img" aria-label="Pedidos Devueltos" title="Pedidos Devueltos"/>
+            Pedidos Devueltos
+        </div>
+    </t>
+
+    <t t-name="sg_pos_seller_cashier_flow.ReturnToSellerButton">
+        <div class="control-button btn btn-light rounded-0 fw-bolder" t-on-click="onClick">
+            <i class="fa fa-undo" role="img" aria-label="Enviar de vuelta a Vendedor" title="Enviar de vuelta a Vendedor"/>
+            Enviar de vuelta a Vendedor
+        </div>
+    </t>
+
+    <t t-name="sg_pos_seller_cashier_flow.PendingOrdersPopup">
+        <div class="popup popup-selection">
+            <div class="modal-header drag-handle">
+                <h4 class="modal-title"><t t-esc="props.title"/></h4>
+            </div>
+            <div class="selection btn-group-vertical justify-content-start w-100 p-3 overflow-y-auto">
+                <t t-foreach="props.orders" t-as="order" t-key="order.id">
+                    <button type="button"
+                            class="selection-item d-flex align-items-center justify-content-between btn btn-lg btn-outline-secondary w-100 p-3 text-start"
+                            t-on-click="() => this.selectOrder(order)">
+                        <div class="d-flex flex-column w-100">
+                            <div class="d-flex justify-content-between gap-3">
+                                <span class="fw-bolder" t-esc="order.name"/>
+                                <span t-esc="env.utils.formatCurrency(order.amount_total)"/>
+                            </div>
+                            <span t-if="order.customer_note_name" t-esc="order.customer_note_name"/>
+                            <span>
+                                <t t-esc="order.seller_name"/>
+                                <t t-if="order.create_date"> - <t t-esc="order.create_date"/></t>
+                            </span>
+                        </div>
+                        <i class="oi oi-chevron-right ms-3"/>
+                    </button>
+                </t>
+            </div>
+            <footer class="footer modal-footer">
+                <div class="button cancel btn btn-lg btn-primary" t-on-click="cancel">
+                    <t t-esc="props.cancelText"/>
+                </div>
+            </footer>
+        </div>
+    </t>
+</templates>

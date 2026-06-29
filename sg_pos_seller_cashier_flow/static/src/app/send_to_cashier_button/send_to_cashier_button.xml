@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="sg_pos_seller_cashier_flow.SendToCashierButton">
+        <div class="control-button btn btn-light rounded-0 fw-bolder" t-on-click="onClick">
+            <i class="fa fa-paper-plane" role="img" aria-label="Enviar a Caja" title="Enviar a Caja"/>
+            Enviar a Caja
+        </div>
+    </t>
+</templates>
