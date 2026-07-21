@@ -256,8 +256,21 @@ patch(BarcodePickingModel.prototype, {
                 if (currentLine) {
                     this._sgApplyActiveLocationFlags(this.sg_active_source_location_id);
                     this._sgSetCurrentLine(currentLine);
+
+                    const sorter = this._sortingMethod.bind(this);
+
+                    if (this.currentState?.lines) {
+                        this.currentState.lines.sort(sorter);
+                    }
+
                     this.trigger("update");
-                    this._sgScrollCurrentLineToTop();
+
+                    setTimeout(() => {
+                        const page = document.querySelector(".o_barcode_lines");
+                        if (page) {
+                            page.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+                        }
+                    }, 100);
                 }
 
                 return result;
@@ -266,4 +279,23 @@ patch(BarcodePickingModel.prototype, {
 
         return super._processBarcode(barcode);
     },
+
+    async updateLineQty(virtualId, qty = 1) {
+        const line = (this.pageLines || []).find((l) => l.virtual_id === virtualId);
+        if (
+            this.record?.picking_type_code === "outgoing" &&
+            this.sg_active_source_location_id &&
+            line &&
+            line.location_id?.id !== this.sg_active_source_location_id
+        ) {
+            await this.actionMutex.exec(() =>
+                this.updateLine(line, { qty_done: qty, dontUpdateSourceLocation: true })
+            );
+            this.trigger("update");
+            return;
+        }
+
+        return super.updateLineQty(virtualId, qty);
+    },
+
 });
