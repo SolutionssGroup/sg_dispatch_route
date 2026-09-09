@@ -144,6 +144,35 @@ patch(BarcodePickingModel.prototype, {
         }, 100);
     },
 
+    /**
+     * Sube la lista de líneas hasta el tope, de forma robusta:
+     * - espera dos animation frames tras el re-render de Odoo (en vez de un
+     *   setTimeout fijo) para no pelear el scroll contra el propio repintado.
+     * - fuerza scrollTop = 0 directo (soportado por cualquier WebView,
+     *   incluyendo PDAs Android más viejas donde scrollTo({behavior:'smooth'})
+     *   a veces no hace nada).
+     * - intenta además un scroll suave como mejora visual, sin depender de él.
+     */
+    _sgScrollListToTop() {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const page = document.querySelector(".o_barcode_lines");
+                if (!page) {
+                    return;
+                }
+                page.scrollTop = 0;
+                if (typeof page.scrollTo === "function") {
+                    try {
+                        page.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+                    } catch (e) {
+                        // Algunos WebView viejos no soportan el objeto de opciones;
+                        // scrollTop = 0 ya garantizó el resultado.
+                    }
+                }
+            });
+        });
+    },
+
     async _processBarcode(barcode) {
         const barcodeData = await this._parseBarcode(barcode);
 
@@ -191,12 +220,7 @@ patch(BarcodePickingModel.prototype, {
 
                 this.trigger("update");
 
-                setTimeout(() => {
-                    const page = document.querySelector(".o_barcode_lines");
-                    if (page) {
-                        page.scrollTo({ top: 0, left: 0, behavior: "smooth" });
-                    }
-                }, 100);
+                this._sgScrollListToTop();
 
                 return result;
             }
@@ -265,12 +289,7 @@ patch(BarcodePickingModel.prototype, {
 
                     this.trigger("update");
 
-                    setTimeout(() => {
-                        const page = document.querySelector(".o_barcode_lines");
-                        if (page) {
-                            page.scrollTo({ top: 0, left: 0, behavior: "smooth" });
-                        }
-                    }, 100);
+                    this._sgScrollListToTop();
                 }
 
                 return result;
