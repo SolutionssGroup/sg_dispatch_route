@@ -50,6 +50,25 @@ class StockMove(models.Model):
             strict=strict,
         )
 
+    def _do_unreserve(self):
+        """
+        Al liberar una reserva (botón 'Anular reserva', limpieza de backorders,
+        etc.), la decisión de ubicación que tomó la ruta de despacho para estos
+        movimientos queda obsoleta: puede haber cambiado el stock disponible en
+        los tramos desde que se calculó. Se resetea sg_dispatch_route_processed
+        para que el próximo 'Comprobar disponibilidad' vuelva a correr
+        get_allocation_plan() desde cero, en vez de quedar pegado para siempre
+        a la ubicación (a menudo la raíz AP/Stock) que se decidió la primera vez.
+        """
+        moves_to_reprocess = self.filtered("sg_dispatch_route_processed")
+
+        result = super()._do_unreserve()
+
+        if moves_to_reprocess:
+            moves_to_reprocess.write({"sg_dispatch_route_processed": False})
+
+        return result
+
     def _sg_required_qty_in_product_uom(self):
         self.ensure_one()
         return self.product_uom._compute_quantity(
