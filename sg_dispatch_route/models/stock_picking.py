@@ -51,9 +51,25 @@ class StockPicking(models.Model):
             if not route:
                 continue
 
+            # Fix 2026-09-30 (bug: líneas divididas que no reservan aunque
+            # sobre stock en total): antes se excluía aquí cualquier move con
+            # sg_dispatch_route_processed=True, así hubiera reservado algo o
+            # no. Eso deja una línea "pegada" para siempre a la ubicación que
+            # tocó en el reparto si esa ubicación queda sin stock antes de
+            # que Odoo alcance a reservarla de verdad (otro picking se
+            # adelantó, o el plan se calculó contra existencia que ya no
+            # estaba). Como sg_dispatch_route_processed nunca se resetea en
+            # ese caso (solo _do_unreserve lo resetea, y aquí no hubo nada
+            # que anular porque nunca llegó a reservar), ningún "Comprobar
+            # disponibilidad" futuro la volvía a intentar.
+            # `not m.move_line_ids` ya es suficiente guardián: un move con
+            # move_line_ids es un move que SÍ logró reservar algo (parcial o
+            # total) y no debe volver a partirse. Un move sin move_line_ids
+            # nunca reservó nada, sin importar si ya se le calculó un plan
+            # antes, así que debe poder reintentarse con la existencia
+            # actual en cada pasada.
             candidate_moves = picking.move_ids.filtered(
                 lambda m: m.state in ("confirmed", "waiting", "partially_available")
-                and not m.sg_dispatch_route_processed
                 and not m.move_line_ids
                 and m.product_id
                 and m.product_id.type == "product"

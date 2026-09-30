@@ -5,6 +5,16 @@ from odoo.tools.float_utils import float_compare, float_is_zero
 class StockMove(models.Model):
     _inherit = "stock.move"
 
+    # Nota (fix 2026-09-30): este flag YA NO decide si un move puede volver
+    # a partirse/replanificarse — eso ahora lo decide únicamente
+    # `not move_line_ids` (ver _sg_prepare_dispatch_route_moves y
+    # _sg_prepare_dispatch_route_before_assign). Su único uso real hoy es
+    # marcar, para _update_reserved_quantity, que este move ya pasó por
+    # get_allocation_plan() al menos una vez y por tanto su location_id debe
+    # respetarse en modo estricto (strict=True) en vez de dejar que Odoo
+    # busque en cualquier ubicación. No lo uses como "ya no hace falta
+    # tocarlo": un move con este flag en True puede seguir sin haber
+    # reservado nada.
     sg_dispatch_route_processed = fields.Boolean(
         string="Ruta de despacho procesada",
         default=False,
@@ -231,11 +241,15 @@ class StockMove(models.Model):
         return True
 
     def _sg_prepare_dispatch_route_before_assign(self):
+        # Fix 2026-09-30: ver el comentario equivalente en
+        # stock_picking.py::_sg_prepare_dispatch_route_moves. No se excluye
+        # aquí por sg_dispatch_route_processed: ese flag no distingue entre
+        # "ya reservó algo" y "se le calculó un plan que terminó en 0
+        # reservado". `not move.move_line_ids` sí distingue eso, y es el
+        # único guardián que necesitamos para no volver a partir un move que
+        # ya logró reservar.
         for move in self:
             if move.state in ("done", "cancel"):
-                continue
-
-            if move.sg_dispatch_route_processed:
                 continue
 
             if move.move_line_ids:
