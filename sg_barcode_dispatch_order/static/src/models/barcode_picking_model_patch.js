@@ -24,6 +24,33 @@ patch(BarcodePickingModel.prototype, {
         return super.shouldSplitLine(line);
     },
 
+    /**
+     * Fix 2026-09-30: lineCanBeEdited es el guardián que Odoo ya usa para
+     * habilitar/deshabilitar el lápiz, el botón "+N" y el botón de
+     * incremento de una línea (ver stock_barcode.LineComponent, atributo
+     * t-att-disabled de esos tres botones). Para pickings de salida se le
+     * agrega la misma regla que ya tiene updateLineQty: solo se puede
+     * tocar la cantidad de una línea cuando ella es a la vez la línea
+     * "actual" (producto ya escaneado, sg_current_line) Y su ubicación
+     * coincide con la ubicación activa en verde — en cualquier orden de
+     * escaneo. Así los tres botones quedan visualmente deshabilitados en
+     * vez de solo rechazar el toque después de que ya se habilitaron.
+     */
+    lineCanBeEdited(line) {
+        if (this.record?.picking_type_code === "outgoing") {
+            const activeLocationId = this.sg_active_source_location_id;
+            const isReady = Boolean(
+                line?.sg_current_line
+                && activeLocationId
+                && line.location_id?.id === activeLocationId
+            );
+            if (!isReady) {
+                return false;
+            }
+        }
+        return super.lineCanBeEdited(line);
+    },
+
     _sortingMethod(l1, l2) {
         // Fix 2026-09-30 (conservar la ruta de despacho como el orden base):
         // antes esta función ponía primero las líneas de la ubicación activa

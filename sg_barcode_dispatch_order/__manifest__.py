@@ -20,6 +20,10 @@ sg_dispatch_route.
         "web.assets_backend": [
             "sg_barcode_dispatch_order/static/src/models/barcode_model_patch.js",
             "sg_barcode_dispatch_order/static/src/models/barcode_picking_model_patch.js",
+            "sg_barcode_dispatch_order/static/src/models/line_component_patch.js",
+            "sg_barcode_dispatch_order/static/src/models/main_component_patch.js",
+            "sg_barcode_dispatch_order/static/src/components/sg_quantity_dialog.js",
+            "sg_barcode_dispatch_order/static/src/components/sg_quantity_dialog.xml",
             "sg_barcode_dispatch_order/static/src/scss/barcode_highlight.scss",
             "sg_barcode_dispatch_order/static/src/xml/barcode_line_highlight.xml",
         ],

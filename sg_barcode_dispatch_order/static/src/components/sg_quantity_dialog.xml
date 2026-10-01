@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<templates xml:space="preserve">
+    <t t-name="sg_barcode_dispatch_order.SgQuantityDialog">
+        <Dialog title="props.productName or 'Cantidad'" size="'sm'" contentClass="'sg_quantity_dialog'">
+            <div class="d-flex flex-column align-items-center" style="gap: 12px;">
+                <div class="d-flex align-items-baseline justify-content-center" style="gap: 8px; width: 100%;">
+                    <span class="fw-bold" style="font-size: 1.75rem; min-width: 80px; text-align: right;" t-esc="displayValue"/>
+                    <span t-if="props.demandQty" class="text-muted" style="font-size: 1.1rem;">
+                        / <t t-esc="props.demandQty"/> <t t-esc="props.uom"/>
+                    </span>
+                </div>
+                <div t-if="state.error" class="text-danger" style="font-size: 13px;" t-esc="state.error"/>
+                <div class="d-grid" style="grid-template-columns: repeat(3, 72px); gap: 8px;">
+                    <button type="button" class="btn btn-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="() => this.onDigit('7')">7</button>
+                    <button type="button" class="btn btn-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="() => this.onDigit('8')">8</button>
+                    <button type="button" class="btn btn-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="() => this.onDigit('9')">9</button>
+                    <button type="button" class="btn btn-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="() => this.onDigit('4')">4</button>
+                    <button type="button" class="btn btn-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="() => this.onDigit('5')">5</button>
+                    <button type="button" class="btn btn-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="() => this.onDigit('6')">6</button>
+                    <button type="button" class="btn btn-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="() => this.onDigit('1')">1</button>
+                    <button type="button" class="btn btn-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="() => this.onDigit('2')">2</button>
+                    <button type="button" class="btn btn-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="() => this.onDigit('3')">3</button>
+                    <button type="button" class="btn btn-outline-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="() => this.onDigit('.')">.</button>
+                    <button type="button" class="btn btn-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="() => this.onDigit('0')">0</button>
+                    <button type="button" class="btn btn-outline-secondary" style="height: 56px; font-size: 1.1rem;" t-on-click="onBackspace">
+                        <i class="fa fa-long-arrow-left" aria-hidden="true"/>
+                    </button>
+                </div>
+            </div>
+            <t t-set-slot="footer">
+                <button type="button" class="btn btn-secondary" t-on-click="onDiscard">Descartar</button>
+                <button type="button" class="btn btn-primary" t-on-click="onConfirm">Confirmar</button>
+            </t>
+        </Dialog>
+    </t>
+</templates>
