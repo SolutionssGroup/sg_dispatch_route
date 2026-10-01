@@ -164,26 +164,36 @@ patch(BarcodePickingModel.prototype, {
         return offset;
     },
 
-    _sgScrollCurrentLineToTop() {
+    /**
+     * Fix 2026-09-30: antes siempre buscaba primero data-sg-current-line
+     * (la línea "actual", naranja). Eso hacía que, al escanear una
+     * ubicación NUEVA, si quedaba una línea naranja de un producto
+     * escaneado antes en OTRA ubicación, el scroll se iba para esa línea
+     * vieja en vez de ir a las líneas verdes de la ubicación que de verdad
+     * se acaba de leer. Por eso ahora el llamador indica qué prioridad
+     * quiere: "location" (ubicación recién escaneada, busca primero verde)
+     * o "product" (producto recién escaneado, busca primero naranja).
+     */
+    _sgScrollCurrentLineToTop(priority = "product") {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 const page = document.querySelector(".o_barcode_lines");
-                // Fix 2026-09-30: antes solo buscaba .o_selected (la clase
-                // propia de Odoo, ligada a selectedLineVirtualId). Al
-                // escanear una ubicación, selectedLineVirtualId se limpia a
-                // propósito (una ubicación puede tener varias líneas, no
-                // una sola), así que .o_selected no encontraba nada y el
-                // scroll no se movía. Ahora se busca primero por los
-                // atributos propios (data-sg-current-line para producto
-                // escaneado, data-sg-active-location-line para ubicación
-                // escaneada) que sí se marcan en barcode_line_highlight.xml
-                // sin depender de la selección interna de Odoo.
-                const currentLine =
-                    document.querySelector('.o_barcode_line[data-sg-current-line="1"]')
-                    || document.querySelector('.o_barcode_line[data-sg-active-location-line="1"]')
-                    || document.querySelector(
-                        ".o_barcode_line.sg_scanned_line, .o_barcode_line.o_selected, .o_barcode_line.o_highlight"
-                    );
+                const currentSelector = '.o_barcode_line[data-sg-current-line="1"]';
+                const activeLocationSelector = '.o_barcode_line[data-sg-active-location-line="1"]';
+                const fallbackSelector =
+                    ".o_barcode_line.sg_scanned_line, .o_barcode_line.o_selected, .o_barcode_line.o_highlight";
+
+                const selectors = priority === "location"
+                    ? [activeLocationSelector, currentSelector, fallbackSelector]
+                    : [currentSelector, activeLocationSelector, fallbackSelector];
+
+                let currentLine = null;
+                for (const selector of selectors) {
+                    currentLine = document.querySelector(selector);
+                    if (currentLine) {
+                        break;
+                    }
+                }
                 if (!page || !currentLine) {
                     return;
                 }
@@ -264,6 +274,18 @@ patch(BarcodePickingModel.prototype, {
                     this.lastScanned.sourceLocation = false;
                 }
 
+                // Fix 2026-09-30: si quedaba una línea "actual" (naranja) de
+                // un producto escaneado antes, en otra ubicación, apagarla
+                // aquí — ya no aplica al escanear una ubicación nueva. Sin
+                // esto, el scroll (y el resaltado) se iban para esa línea
+                // vieja en vez de las de la ubicación recién leída.
+                for (const line of this.currentState?.lines || []) {
+                    if (line.sg_current_line) {
+                        line.sg_current_line = false;
+                        line.sg_worked_line = true;
+                    }
+                }
+
                 this.sg_active_source_location_id = barcodeData.location.id;
                 this._sgApplyActiveLocationFlags(this.sg_active_source_location_id);
 
@@ -286,7 +308,7 @@ patch(BarcodePickingModel.prototype, {
                 // hace scroll hasta donde esté esa ubicación en la ruta.
                 this._sgApplyActiveLocationFlags(this.sg_active_source_location_id);
                 this.trigger("update");
-                this._sgScrollCurrentLineToTop();
+                this._sgScrollCurrentLineToTop("location");
 
                 return result;
             }
