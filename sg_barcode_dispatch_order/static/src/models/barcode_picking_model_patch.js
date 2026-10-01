@@ -25,33 +25,28 @@ patch(BarcodePickingModel.prototype, {
     },
 
     _sortingMethod(l1, l2) {
-        const activeLocationId = this.sg_active_source_location_id;
-        const l1InActiveLocation = activeLocationId && l1.location_id?.id === activeLocationId;
-        const l2InActiveLocation = activeLocationId && l2.location_id?.id === activeLocationId;
+        // Fix 2026-09-30 (conservar la ruta de despacho como el orden base):
+        // antes esta función ponía primero las líneas de la ubicación activa
+        // y, dentro de esas, la línea "actual" — es decir, la posición en el
+        // arreglo cambiaba cada vez que se escaneaba algo. Eso iba contra la
+        // idea de que la ruta (sg_dispatch_order) es el orden que no se debe
+        // tocar: resaltar la ubicación activa o la línea actual es un asunto
+        // puramente visual (ver barcode_line_highlight.xml, que ya lo pinta
+        // por sg_active_location_line / sg_current_line / sg_worked_line sin
+        // depender de la posición). Por eso ahora el orden del arreglo
+        // depende únicamente de sg_dispatch_order (y el id como desempate),
+        // nunca de qué se escaneó último.
+        const order1 = Number.isFinite(l1.sg_dispatch_order) ? l1.sg_dispatch_order : 999999;
+        const order2 = Number.isFinite(l2.sg_dispatch_order) ? l2.sg_dispatch_order : 999999;
 
-        if (l1InActiveLocation && !l2InActiveLocation) {
+        if (order1 < order2) {
             return -1;
-        } else if (!l1InActiveLocation && l2InActiveLocation) {
+        } else if (order1 > order2) {
             return 1;
         }
 
-        if (l1InActiveLocation && l2InActiveLocation) {
-            if (l1.sg_current_line && !l2.sg_current_line) {
-                return -1;
-            } else if (!l1.sg_current_line && l2.sg_current_line) {
-                return 1;
-            }
-
-            const order1 = Number.isFinite(l1.sg_dispatch_order) ? l1.sg_dispatch_order : 999999;
-            const order2 = Number.isFinite(l2.sg_dispatch_order) ? l2.sg_dispatch_order : 999999;
-
-            if (order1 < order2) {
-                return -1;
-            } else if (order1 > order2) {
-                return 1;
-            }
-
-            return (l1.id || 0) - (l2.id || 0);
+        if (l1.id && l2.id) {
+            return l1.id - l2.id;
         }
 
         return super._sortingMethod(l1, l2);
@@ -122,26 +117,43 @@ patch(BarcodePickingModel.prototype, {
         }
     },
 
+    /**
+     * Fix 2026-09-30: antes se usaba para "subir hasta el tope" asumiendo
+     * que la línea resaltada quedaba en la posición 0 tras el .sort().
+     * Ahora el arreglo ya no se reordena (ver _sortingMethod y
+     * _processBarcode), así que la línea activa puede estar en cualquier
+     * parte de la ruta — este método hace scroll hasta SU posición real,
+     * no al tope. Reusa el mismo patrón robusto de _sgScrollListToTop
+     * (doble requestAnimationFrame en vez de setTimeout fijo, y asignación
+     * directa de scrollTop para WebViews viejos) en vez del setTimeout(100)
+     * que tenía antes.
+     */
     _sgScrollCurrentLineToTop() {
-        setTimeout(() => {
-            const page = document.querySelector(".o_barcode_lines");
-            const currentLine = document.querySelector(
-                ".o_barcode_line.sg_scanned_line, .o_barcode_line.o_selected, .o_barcode_line.o_highlight"
-            );
-            if (!page || !currentLine) {
-                return;
-            }
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const page = document.querySelector(".o_barcode_lines");
+                const currentLine = document.querySelector(
+                    ".o_barcode_line.sg_scanned_line, .o_barcode_line.o_selected, .o_barcode_line.o_highlight"
+                );
+                if (!page || !currentLine) {
+                    return;
+                }
 
-            const pageRect = page.getBoundingClientRect();
-            const lineRect = currentLine.getBoundingClientRect();
-            const top = page.scrollTop + lineRect.top - pageRect.top - 8;
+                const pageRect = page.getBoundingClientRect();
+                const lineRect = currentLine.getBoundingClientRect();
+                const top = Math.max(page.scrollTop + lineRect.top - pageRect.top - 8, 0);
 
-            page.scrollTo({
-                top: Math.max(top, 0),
-                left: 0,
-                behavior: "smooth",
+                page.scrollTop = top;
+                if (typeof page.scrollTo === "function") {
+                    try {
+                        page.scrollTo({ top, left: 0, behavior: "smooth" });
+                    } catch (e) {
+                        // Algunos WebView viejos no soportan el objeto de opciones;
+                        // scrollTop ya garantizó el resultado.
+                    }
+                }
             });
-        }, 100);
+        });
     },
 
     /**
@@ -210,46 +222,76 @@ patch(BarcodePickingModel.prototype, {
                     this._sg_block_split_on_location_scan = false;
                 }
 
+                // Fix 2026-09-30: escanear una ubicación solo resalta en
+                // verde las líneas de esa ubicación (sg_active_location_line,
+                // pintado por CSS en barcode_line_highlight.xml). Ya NO se
+                // reordena this.currentState.lines — la ruta de despacho
+                // (sg_dispatch_order) es el orden que el operador ve siempre,
+                // escanee lo que escanee. Antes aquí se hacía
+                // `this.currentState.lines.sort(sorter)` seguido de un
+                // scroll al tope; ahora solo se refrescan los flags y se
+                // hace scroll hasta donde esté esa ubicación en la ruta.
                 this._sgApplyActiveLocationFlags(this.sg_active_source_location_id);
-
-                const sorter = this._sortingMethod.bind(this);
-
-                if (this.currentState?.lines) {
-                    this.currentState.lines.sort(sorter);
-                }
-
                 this.trigger("update");
-
-                this._sgScrollListToTop();
+                this._sgScrollCurrentLineToTop();
 
                 return result;
             }
 
-            if (barcodeData.product && !this.sg_active_source_location_id) {
-                this.notification(
-                    _t("Primero debe escanear la ubicación de origen."),
-                    { type: "danger" }
-                );
-                return;
-            }
+            if (barcodeData.product) {
+                const activeLocationId = this.sg_active_source_location_id;
 
-            if (
-                barcodeData.product &&
-                this.sg_active_source_location_id &&
-                !this.currentState.lines.some(
-                    (line) =>
-                        line.product_id?.id === barcodeData.product.id &&
-                        line.location_id?.id === this.sg_active_source_location_id
-                )
-            ) {
-                this.notification(
-                    _t("Este producto no pertenece a la ubicación escaneada."),
-                    { type: "danger" }
-                );
-                return;
-            }
+                const lineAtActiveLocation = activeLocationId
+                    ? this.currentState.lines.find(
+                          (line) =>
+                              line.product_id?.id === barcodeData.product.id &&
+                              line.location_id?.id === activeLocationId
+                      )
+                    : false;
 
-            if (barcodeData.product && this.sg_active_source_location_id) {
+                if (activeLocationId && !lineAtActiveLocation) {
+                    // Hay una ubicación activa (en verde), pero este producto
+                    // no se despacha desde ahí.
+                    this.notification(
+                        _t("Este producto no pertenece a la ubicación escaneada."),
+                        { type: "danger" }
+                    );
+                    return;
+                }
+
+                if (!lineAtActiveLocation) {
+                    // Fix 2026-09-30: no hay ninguna ubicación en verde que
+                    // corresponda a este producto todavía (no se ha escaneado
+                    // ubicación, o la que está activa es de otro producto).
+                    // Antes esto bloqueaba sin hacer nada más. Ahora: solo
+                    // señala/resalta la línea de este producto y hace scroll
+                    // hasta ella — sin sumar cantidad — y pide la ubicación.
+                    const anyLine = (this.currentState?.lines || []).find(
+                        (line) => line.product_id?.id === barcodeData.product.id
+                    );
+
+                    if (!anyLine) {
+                        this.notification(
+                            _t("Este producto no pertenece a este picking."),
+                            { type: "danger" }
+                        );
+                        return;
+                    }
+
+                    this.selectedLineVirtualId = anyLine.virtual_id;
+                    this._sgSetCurrentLine(anyLine);
+                    this.trigger("update");
+                    this._sgScrollCurrentLineToTop();
+
+                    this.notification(
+                        _t("Primero debe escanear la ubicación de origen."),
+                        { type: "danger" }
+                    );
+                    return;
+                }
+
+                // La ubicación activa (verde) coincide con este producto:
+                // aquí sí se suma cantidad, igual que antes.
                 const productLines = this._sgGetProductLocationLines(barcodeData.product.id);
                 const scannedQty = this._sgGetScannedQty(barcodeData);
                 const pendingLine = this._sgGetPendingLine(productLines, scannedQty);
@@ -280,16 +322,8 @@ patch(BarcodePickingModel.prototype, {
                 if (currentLine) {
                     this._sgApplyActiveLocationFlags(this.sg_active_source_location_id);
                     this._sgSetCurrentLine(currentLine);
-
-                    const sorter = this._sortingMethod.bind(this);
-
-                    if (this.currentState?.lines) {
-                        this.currentState.lines.sort(sorter);
-                    }
-
                     this.trigger("update");
-
-                    this._sgScrollListToTop();
+                    this._sgScrollCurrentLineToTop();
                 }
 
                 return result;
