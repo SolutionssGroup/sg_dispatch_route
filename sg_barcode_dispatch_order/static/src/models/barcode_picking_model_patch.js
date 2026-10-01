@@ -168,9 +168,22 @@ patch(BarcodePickingModel.prototype, {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 const page = document.querySelector(".o_barcode_lines");
-                const currentLine = document.querySelector(
-                    ".o_barcode_line.sg_scanned_line, .o_barcode_line.o_selected, .o_barcode_line.o_highlight"
-                );
+                // Fix 2026-09-30: antes solo buscaba .o_selected (la clase
+                // propia de Odoo, ligada a selectedLineVirtualId). Al
+                // escanear una ubicación, selectedLineVirtualId se limpia a
+                // propósito (una ubicación puede tener varias líneas, no
+                // una sola), así que .o_selected no encontraba nada y el
+                // scroll no se movía. Ahora se busca primero por los
+                // atributos propios (data-sg-current-line para producto
+                // escaneado, data-sg-active-location-line para ubicación
+                // escaneada) que sí se marcan en barcode_line_highlight.xml
+                // sin depender de la selección interna de Odoo.
+                const currentLine =
+                    document.querySelector('.o_barcode_line[data-sg-current-line="1"]')
+                    || document.querySelector('.o_barcode_line[data-sg-active-location-line="1"]')
+                    || document.querySelector(
+                        ".o_barcode_line.sg_scanned_line, .o_barcode_line.o_selected, .o_barcode_line.o_highlight"
+                    );
                 if (!page || !currentLine) {
                     return;
                 }

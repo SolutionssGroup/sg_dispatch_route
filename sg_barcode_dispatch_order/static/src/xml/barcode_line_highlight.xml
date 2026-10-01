@@ -12,6 +12,16 @@
                             ? 'background-color: #e6f4ea !important; border-left: 4px solid #34a853 !important;'
                             : ''
             </attribute>
+            <!-- Fix 2026-09-30: atributos propios para ubicar la línea
+                 resaltada desde JS (ver _sgScrollCurrentLineToTop). Antes
+                 se buscaba por la clase o_selected de Odoo, pero esa clase
+                 depende de selectedLineVirtualId, que la rama de escaneo de
+                 ubicación limpia a propósito (false) porque una ubicación
+                 puede abarcar varias líneas, no una sola. Resultado: al
+                 escanear solo la ubicación, no se encontraba nada que
+                 resaltar y la lista se quedaba a medio scroll de antes. -->
+            <attribute name="t-att-data-sg-current-line">line.sg_current_line ? '1' : undefined</attribute>
+            <attribute name="t-att-data-sg-active-location-line">line.sg_active_location_line ? '1' : undefined</attribute>
         </xpath>
     </t>
 </templates>
