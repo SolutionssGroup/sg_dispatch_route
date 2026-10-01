@@ -119,9 +119,19 @@ class ProductProduct(models.Model):
                     product_res.get("qty_available", 0.0) - qty_excluded,
                     0.0,
                 )
-                product_res["virtual_available"] = max(
-                    product_res.get("virtual_available", 0.0) - qty_excluded,
-                    0.0,
+                # Fix 2026-09-30 (reporte Grow IT, tiquete #21610): aquí se
+                # limitaba virtual_available a 0.0 igual que qty_available.
+                # Pero virtual_available es el pronosticado — SÍ debe poder
+                # quedar negativo cuando hay más demanda abierta que
+                # existencia, porque eso es justo lo que informa: cuánto
+                # falta. Al forzar max(..., 0.0) con un déficit real grande
+                # (ej. CAB-18/2-STR: ~-23,492 antes de restar 850 excluidas),
+                # el resultado se mostraba en 0, ocultando el faltante real.
+                # qty_available y free_qty sí se quedan con su límite en 0,
+                # porque esos representan existencia física/libre a mano, que
+                # no tiene sentido mostrar en negativo.
+                product_res["virtual_available"] = (
+                    product_res.get("virtual_available", 0.0) - qty_excluded
                 )
 
             if free_excluded:
