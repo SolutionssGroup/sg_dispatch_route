@@ -458,20 +458,32 @@ patch(BarcodePickingModel.prototype, {
                 && line.location_id?.id === activeLocationId
             );
 
+            // Fix 2026-09-30: cuando se rechaza aquí abajo (línea no lista,
+            // o cantidad mayor a la esperada), antes se salía sin avisarle
+            // a la interfaz. Si algo ya había cambiado el número en pantalla
+            // de forma optimista (p. ej. el botón rápido "+N" de Odoo, que
+            // actualiza la vista antes de esperar la respuesta de este
+            // método), ese número quedaba mal en la lista aunque el rechazo
+            // sí se aplicara por dentro — se veía la cantidad subir aunque
+            // nunca se guardó. this.trigger("update") fuerza a la lista a
+            // releer el valor real (que no cambió, porque no llegamos a
+            // this.updateLine) en los dos rechazos de abajo también, no
+            // solo cuando sí se aplica el cambio.
             if (!isReady) {
                 this.notification(
                     _t("Primero escanea el producto y la ubicación de esta línea (en cualquier orden) antes de cambiar la cantidad."),
                     { type: "danger" }
                 );
+                this.trigger("update");
                 return;
             }
 
-            // Fix 2026-09-30: esto dejaba poner CUALQUIER cantidad, incluso
-            // más de lo que el producto espera en esta línea (se vio en
-            // pruebas reales: 18 unidades escritas a mano contra una
-            // demanda de 6). El modal (sg_quantity_dialog.js) ya valida
-            // esto también, pero se repite aquí para cualquier otro
-            // llamador que no pase por el modal.
+            // Esto dejaba poner CUALQUIER cantidad, incluso más de lo que
+            // el producto espera en esta línea (se vio en pruebas reales:
+            // 18 unidades escritas a mano contra una demanda de 6, y luego
+            // 7 contra una demanda de 2 vía el botón "+N"). El modal
+            // (sg_quantity_dialog.js) ya valida esto también, pero se repite
+            // aquí para cualquier otro llamador que no pase por el modal.
             const demandQty = this.getQtyDemand(line);
             if (
                 Number.isFinite(demandQty)
@@ -482,6 +494,7 @@ patch(BarcodePickingModel.prototype, {
                     _t("No puedes poner más de la cantidad esperada para esta línea."),
                     { type: "danger" }
                 );
+                this.trigger("update");
                 return;
             }
 

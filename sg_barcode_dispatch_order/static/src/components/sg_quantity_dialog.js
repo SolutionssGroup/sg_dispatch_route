@@ -29,6 +29,11 @@ export class SgQuantityDialog extends Component {
             value: this._formatInitial(this.props.initialQty),
             error: "",
         });
+        // Fix 2026-09-30: el modal abría con el valor anterior precargado
+        // (ej. "5"), y el primer toque de un dígito se lo pegaba detrás en
+        // vez de reemplazarlo (tocar "2" daba "52", no "2"). Mientras esto
+        // sea true, el próximo dígito empieza un número nuevo de cero.
+        this._freshStart = true;
     }
 
     _formatInitial(qty) {
@@ -45,6 +50,10 @@ export class SgQuantityDialog extends Component {
 
     onDigit(d) {
         this.state.error = "";
+        if (this._freshStart) {
+            this.state.value = "";
+            this._freshStart = false;
+        }
         if (d === "." && this.state.value.includes(".")) {
             return;
         }
@@ -57,11 +66,13 @@ export class SgQuantityDialog extends Component {
 
     onBackspace() {
         this.state.error = "";
+        this._freshStart = false;
         this.state.value = this.state.value.slice(0, -1);
     }
 
     onClear() {
         this.state.error = "";
+        this._freshStart = false;
         this.state.value = "";
     }
 
