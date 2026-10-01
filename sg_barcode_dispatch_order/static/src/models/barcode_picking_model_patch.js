@@ -128,6 +128,42 @@ patch(BarcodePickingModel.prototype, {
      * directa de scrollTop para WebViews viejos) en vez del setTimeout(100)
      * que tenía antes.
      */
+    /**
+     * Fix 2026-09-30: la barra de arriba (el aviso "Escanear ubicación" /
+     * "Escanear producto" que Odoo pinta fija/pegajosa encima de la lista)
+     * tapaba la línea recién escaneada, porque el scroll la dejaba justo en
+     * el borde superior del contenedor sin descontar esa barra. Aquí se
+     * mide en caliente cualquier elemento fixed/sticky que esté por encima
+     * de .o_barcode_lines (sin asumir una clase concreta, para no depender
+     * de una versión exacta de stock_barcode) y se usa su altura como
+     * margen adicional.
+     */
+    _sgGetStickyHeaderOffset(page) {
+        let offset = 0;
+        const pageTop = page.getBoundingClientRect().top;
+        const container = page.parentElement;
+        if (!container) {
+            return offset;
+        }
+
+        for (const el of container.children) {
+            if (el === page) {
+                continue;
+            }
+            const style = window.getComputedStyle(el);
+            if (style.position !== "sticky" && style.position !== "fixed") {
+                continue;
+            }
+            const rect = el.getBoundingClientRect();
+            if (rect.height <= 0 || rect.top > pageTop + 4) {
+                continue;
+            }
+            offset = Math.max(offset, rect.height);
+        }
+
+        return offset;
+    },
+
     _sgScrollCurrentLineToTop() {
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
@@ -139,9 +175,13 @@ patch(BarcodePickingModel.prototype, {
                     return;
                 }
 
+                const stickyOffset = this._sgGetStickyHeaderOffset(page);
                 const pageRect = page.getBoundingClientRect();
                 const lineRect = currentLine.getBoundingClientRect();
-                const top = Math.max(page.scrollTop + lineRect.top - pageRect.top - 8, 0);
+                const top = Math.max(
+                    page.scrollTop + lineRect.top - pageRect.top - stickyOffset - 8,
+                    0
+                );
 
                 page.scrollTop = top;
                 if (typeof page.scrollTo === "function") {
@@ -335,12 +375,35 @@ patch(BarcodePickingModel.prototype, {
 
     async updateLineQty(virtualId, qty = 1) {
         const line = (this.pageLines || []).find((l) => l.virtual_id === virtualId);
-        if (
-            this.record?.picking_type_code === "outgoing" &&
-            this.sg_active_source_location_id &&
-            line &&
-            line.location_id?.id !== this.sg_active_source_location_id
-        ) {
+
+        // Fix 2026-09-30: antes esto solo evitaba que Odoo reasignara la
+        // ubicación de origen al editar una línea que no fuera la de la
+        // ubicación activa, pero seguía dejando tocar la cantidad con el
+        // dedo (modal numérico o el botón rápido "+N" que completa de un
+        // toque) sin haber escaneado nada. Eso permitía completar un
+        // producto a ciegas, sin pasar por la verificación de ubicación.
+        // Ahora: la cantidad de una línea solo se puede tocar (de cualquier
+        // forma: modal, botón +N) cuando esa línea es a la vez la línea
+        // "actual" (ya se escaneó su producto, sg_current_line) Y su
+        // ubicación coincide con la ubicación activa en verde
+        // (sg_active_source_location_id) — sin importar en qué orden se
+        // escanearon las dos cosas.
+        if (this.record?.picking_type_code === "outgoing" && line) {
+            const activeLocationId = this.sg_active_source_location_id;
+            const isReady = Boolean(
+                line.sg_current_line
+                && activeLocationId
+                && line.location_id?.id === activeLocationId
+            );
+
+            if (!isReady) {
+                this.notification(
+                    _t("Primero escanea el producto y la ubicación de esta línea (en cualquier orden) antes de cambiar la cantidad."),
+                    { type: "danger" }
+                );
+                return;
+            }
+
             await this.actionMutex.exec(() =>
                 this.updateLine(line, { qty_done: qty, dontUpdateSourceLocation: true })
             );
