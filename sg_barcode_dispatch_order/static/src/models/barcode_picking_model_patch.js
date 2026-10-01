@@ -466,6 +466,25 @@ patch(BarcodePickingModel.prototype, {
                 return;
             }
 
+            // Fix 2026-09-30: esto dejaba poner CUALQUIER cantidad, incluso
+            // más de lo que el producto espera en esta línea (se vio en
+            // pruebas reales: 18 unidades escritas a mano contra una
+            // demanda de 6). El modal (sg_quantity_dialog.js) ya valida
+            // esto también, pero se repite aquí para cualquier otro
+            // llamador que no pase por el modal.
+            const demandQty = this.getQtyDemand(line);
+            if (
+                Number.isFinite(demandQty)
+                && demandQty > 0
+                && qty > demandQty
+            ) {
+                this.notification(
+                    _t("No puedes poner más de la cantidad esperada para esta línea."),
+                    { type: "danger" }
+                );
+                return;
+            }
+
             await this.actionMutex.exec(() =>
                 this.updateLine(line, { qty_done: qty, dontUpdateSourceLocation: true })
             );

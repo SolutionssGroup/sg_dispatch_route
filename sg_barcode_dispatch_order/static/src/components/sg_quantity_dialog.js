@@ -71,6 +71,20 @@ export class SgQuantityDialog extends Component {
             this.state.error = _t("Ingresa una cantidad válida.");
             return;
         }
+        // Fix 2026-09-30: este modal no validaba contra la demanda —
+        // dejaba escribir y confirmar cualquier número, permitiendo poner
+        // más cantidad de la que el producto espera en esta línea.
+        if (
+            typeof this.props.demandQty === "number"
+            && qty > this.props.demandQty
+        ) {
+            this.state.error = _t(
+                "No puedes poner más de %s %s — es lo que espera esta línea.",
+                this.props.demandQty,
+                this.props.uom || ""
+            );
+            return;
+        }
         this.props.confirm(qty);
         this.props.close();
     }
