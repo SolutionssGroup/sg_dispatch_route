@@ -240,6 +240,39 @@ class StockMove(models.Model):
 
         return True
 
+    def _sg_release_phantom_reservations(self, products):
+        """
+        El despacho de Inprotec es instantáneo: se comprueba disponibilidad,
+        se despacha en el momento, se valida. Una reserva que sigue viva
+        después de eso (en cualquier otro picking de salida) no representa
+        trabajo en curso real para este negocio — es una reserva fantasma
+        que solo ensucia la existencia libre que ve el próximo "Comprobar
+        disponibilidad". Por eso, antes de repartir la demanda de estos
+        productos, se sueltan TODAS sus reservas de salida vigentes, sin
+        importar en qué picking estén, para que get_allocation_plan() calcule
+        siempre contra existencia limpia.
+
+        Deliberadamente amplio: puede soltar una reserva de un picking que
+        otra persona tenga abierto en su propia PDA en este mismo instante.
+        Es el comportamiento pedido explícitamente para este negocio — no
+        es un descuido.
+
+        Alcance: solo pickings de salida (picking_type_id.code == "outgoing")
+        de la misma compañía. No toca recepciones ni transferencias internas.
+        """
+        if not products:
+            return
+
+        stray_moves = self.env["stock.move"].search([
+            ("product_id", "in", products.ids),
+            ("state", "in", ("assigned", "partially_available")),
+            ("picking_id.picking_type_id.code", "=", "outgoing"),
+            ("company_id", "=", self.env.company.id),
+        ])
+
+        if stray_moves:
+            stray_moves._do_unreserve()
+
     def _sg_prepare_dispatch_route_before_assign(self):
         # Fix 2026-09-30: ver el comentario equivalente en
         # stock_picking.py::_sg_prepare_dispatch_route_moves. No se excluye
@@ -248,6 +281,14 @@ class StockMove(models.Model):
         # reservado". `not move.move_line_ids` sí distingue eso, y es el
         # único guardián que necesitamos para no volver a partir un move que
         # ya logró reservar.
+        relevant_moves = self.filtered(
+            lambda m: m.state not in ("done", "cancel")
+            and m.product_id
+            and m.product_id.type == "product"
+        )
+        if relevant_moves:
+            relevant_moves._sg_release_phantom_reservations(relevant_moves.product_id)
+
         for move in self:
             if move.state in ("done", "cancel"):
                 continue

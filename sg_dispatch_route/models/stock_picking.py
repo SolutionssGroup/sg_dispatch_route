@@ -68,6 +68,23 @@ class StockPicking(models.Model):
             # nunca reservó nada, sin importar si ya se le calculó un plan
             # antes, así que debe poder reintentarse con la existencia
             # actual en cada pasada.
+            # Fix 2026-09-30 (reservas fantasma): este negocio despacha de
+            # forma instantánea — lo que quedó reservado y no se despachó en
+            # el momento es una reserva fantasma que ensucia la existencia
+            # libre para el próximo "Comprobar disponibilidad". Antes de
+            # calcular candidate_moves, se sueltan TODAS las reservas de
+            # salida de estos productos (en cualquier picking, incluido este
+            # mismo si ya tenía una reserva vieja), para que el reparto
+            # arranque siempre contra existencia limpia. Ver el detalle en
+            # stock_move.py::_sg_release_phantom_reservations.
+            relevant_moves = picking.move_ids.filtered(
+                lambda m: m.state not in ("done", "cancel")
+                and m.product_id
+                and m.product_id.type == "product"
+            )
+            if relevant_moves:
+                relevant_moves._sg_release_phantom_reservations(relevant_moves.product_id)
+
             candidate_moves = picking.move_ids.filtered(
                 lambda m: m.state in ("confirmed", "waiting", "partially_available")
                 and not m.move_line_ids
