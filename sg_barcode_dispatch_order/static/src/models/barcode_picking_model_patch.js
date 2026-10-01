@@ -478,17 +478,23 @@ patch(BarcodePickingModel.prototype, {
                 return;
             }
 
-            // Esto dejaba poner CUALQUIER cantidad, incluso más de lo que
-            // el producto espera en esta línea (se vio en pruebas reales:
-            // 18 unidades escritas a mano contra una demanda de 6, y luego
-            // 7 contra una demanda de 2 vía el botón "+N"). El modal
-            // (sg_quantity_dialog.js) ya valida esto también, pero se repite
-            // aquí para cualquier otro llamador que no pase por el modal.
+            // Fix 2026-09-30 (causa real de "el modal sigue sumando"):
+            // Odoo no fija qty_done al valor de qty — se lo SUMA
+            // (stock_barcode._updateLineQty hace line.qty_done+=
+            // args.qty_done). O sea que "qty" aquí es un incremento, no
+            // un total. Por eso la validación tiene que proyectar el
+            // resultado (lo que ya había + qty), no comparar qty solo
+            // contra la demanda — si no, un incremento chico sobre una
+            // línea que ya tenía algo podía seguir pasando el candado y
+            // terminar sumando de más (se vio: 5 ya hecho + un intento
+            // de "poner 2" terminaba en 7, no en 2).
             const demandQty = this.getQtyDemand(line);
+            const currentQty = this.getQtyDone(line);
+            const resultingQty = currentQty + qty;
             if (
                 Number.isFinite(demandQty)
                 && demandQty > 0
-                && qty > demandQty
+                && resultingQty > demandQty
             ) {
                 this.notification(
                     _t("No puedes poner más de la cantidad esperada para esta línea."),

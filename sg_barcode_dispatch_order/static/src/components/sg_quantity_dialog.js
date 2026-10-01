@@ -77,17 +77,19 @@ export class SgQuantityDialog extends Component {
     }
 
     onConfirm() {
-        const qty = parseFloat(this.state.value || "0");
-        if (isNaN(qty) || qty < 0) {
+        const totalQty = parseFloat(this.state.value || "0");
+        if (isNaN(totalQty) || totalQty < 0) {
             this.state.error = _t("Ingresa una cantidad válida.");
             return;
         }
         // Fix 2026-09-30: este modal no validaba contra la demanda —
         // dejaba escribir y confirmar cualquier número, permitiendo poner
-        // más cantidad de la que el producto espera en esta línea.
+        // más cantidad de la que el producto espera en esta línea. La
+        // validación es contra el TOTAL que el usuario quiere dejar en
+        // esta línea (lo que escribió), no contra la diferencia.
         if (
             typeof this.props.demandQty === "number"
-            && qty > this.props.demandQty
+            && totalQty > this.props.demandQty
         ) {
             this.state.error = _t(
                 "No puedes poner más de %s %s — es lo que espera esta línea.",
@@ -96,7 +98,16 @@ export class SgQuantityDialog extends Component {
             );
             return;
         }
-        this.props.confirm(qty);
+        // Fix 2026-09-30 (causa real de "el modal sigue sumando"):
+        // Odoo no fija qty_done al número que se le pasa — se lo SUMA
+        // (línea qty_done += args.qty_done, confirmado en el código
+        // fuente de stock_barcode: _updateLineQty). Lo que el usuario
+        // escribe aquí es el TOTAL que quiere dejar en la línea, no lo
+        // que hay que sumarle. Por eso se manda la diferencia (puede
+        // ser negativa, para corregir hacia abajo), no el número tal
+        // cual.
+        const delta = totalQty - (this.props.initialQty || 0);
+        this.props.confirm(delta);
         this.props.close();
     }
 
