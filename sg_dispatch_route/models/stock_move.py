@@ -212,8 +212,15 @@ class StockMove(models.Model):
             "sg_dispatch_order": _get_dispatch_order(first_line, 1),
         })
 
+        # copy() deja el move nuevo en "draft" (Odoo resetea el estado). Un move
+        # draft no se reserva y deja el picking completo en draft; al validar
+        # desde la PDA Odoo lo confirma y re-asigna en pleno Validar. Se hereda
+        # el estado del padre para que el tramo nazca en el mismo estado.
+        parent_state = self.state
+
         for index, (line, qty_move_uom) in enumerate(planned_lines[1:], start=2):
             self.copy({
+                "state": parent_state,
                 "location_id": line["location"].id,
                 "product_uom_qty": qty_move_uom,
                 "sg_dispatch_route_processed": True,
@@ -228,6 +235,7 @@ class StockMove(models.Model):
             fallback_index = len(planned_lines) + 1
 
             self.copy({
+                "state": parent_state,
                 "location_id": fallback_location.id,
                 "product_uom_qty": remaining_qty_move_uom,
                 "sg_dispatch_route_processed": True,
@@ -281,14 +289,11 @@ class StockMove(models.Model):
         # reservado". `not move.move_line_ids` sí distingue eso, y es el
         # único guardián que necesitamos para no volver a partir un move que
         # ya logró reservar.
-        relevant_moves = self.filtered(
-            lambda m: m.state not in ("done", "cancel")
-            and m.product_id
-            and m.product_id.type == "product"
-        )
-        if relevant_moves:
-            relevant_moves._sg_release_phantom_reservations(relevant_moves.product_id)
-
+        # La liberación de reservas fantasma NO va aquí: este método corre en
+        # cada _action_assign, incluido el que Odoo dispara al confirmar/validar
+        # desde la PDA, y ahí borraría los move lines que la PDA ya cargó
+        # ("Registro faltante: stock.move.line"). Solo corre al pulsar
+        # "Comprobar disponibilidad" (stock_picking.py::_sg_prepare_dispatch_route_moves).
         for move in self:
             if move.state in ("done", "cancel"):
                 continue
