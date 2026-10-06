@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<templates xml:space="preserve">
+    <t t-inherit="stock_barcode.MainComponent" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o_barcode_lines')]/t[1]" position="before">
+            <div t-if="env.model.sgIntPlaceholderLocation"
+                 class="sg_int_placeholder list-group-item d-flex flex-row align-items-center"
+                 data-sg-int-placeholder="1"
+                 style="background-color: #e6f4ea; border-left: 4px solid #34a853;">
+                <i class="fa fa-fw fa-sign-out me-2"/>
+                <div class="flex-grow-1">
+                    <div class="fw-bold" t-esc="env.model.sgIntPlaceholderLocation.display_name"/>
+                    <div class="small text-muted">Escanee los productos de esta ubicación</div>
+                </div>
+            </div>
+        </xpath>
+    </t>
+</templates>

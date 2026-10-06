@@ -432,14 +432,15 @@ patch(BarcodePickingModel.prototype, {
             }
         }
 
-        // Traslados internos: la barra fija de arriba ("Escanee un producto o
-        // la ubicación de destino") tapaba la parte de arriba de la línea
-        // recién leída. Se reusa el mismo scroll que ya corrige esto en
-        // pedidos de salida; la línea seleccionada (.o_selected) queda
-        // completa debajo de la barra.
+        // Traslados internos: Odoo ya decide solo si una ubicación es origen
+        // o destino. Aquí solo se refresca lo visual (ver
+        // barcode_internal_patch.js) y se hace scroll para que la fila o la
+        // línea recién leída quede completa bajo la barra de arriba.
         const baseResult = await super._processBarcode(barcode);
         if (this.record?.picking_type_code === "internal") {
-            this._sgScrollCurrentLineToTop();
+            this._sgRefreshInternalFlags();
+            this.trigger("update");
+            this._sgScrollInternal();
         }
         return baseResult;
     },

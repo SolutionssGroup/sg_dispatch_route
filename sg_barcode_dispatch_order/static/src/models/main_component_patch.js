@@ -21,7 +21,24 @@ patch(MainComponent.prototype, {
     async onOpenProductPage(line) {
         const model = this.env.model;
 
-        if (model?.record?.picking_type_code === "outgoing" && line) {
+        const pickingType = model?.record?.picking_type_code;
+
+        // Traslados internos: mismo modal chico para poner la cantidad, pero
+        // sin tope contra la demanda (un traslado abierto se arma leyendo, no
+        // tiene cantidad esperada) y sin la regla de producto+ubicación.
+        if (pickingType === "internal" && line) {
+            this.dialog.add(SgQuantityDialog, {
+                productName: line.product_id?.display_name,
+                initialQty: model.getQtyDone(line),
+                uom: line.product_uom?.name,
+                confirm: (qty) => {
+                    model.updateLineQty(line.virtual_id, qty);
+                },
+            });
+            return;
+        }
+
+        if (pickingType === "outgoing" && line) {
             if (!model.lineCanBeEdited(line)) {
                 this.notification.add(
                     _t("Primero escanea el producto y la ubicación de esta línea (en cualquier orden) antes de cambiar la cantidad."),
