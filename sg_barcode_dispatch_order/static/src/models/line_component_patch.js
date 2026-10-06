@@ -1,6 +1,8 @@
 /** @odoo-module **/
 
 import { patch } from "@web/core/utils/patch";
+import { _t } from "@web/core/l10n/translation";
+import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import LineComponent from "@stock_barcode/components/line";
 
 /**
@@ -20,5 +22,19 @@ patch(LineComponent.prototype, {
             return;
         }
         return super.select(ev);
+    },
+
+    sgAskDeleteLine(ev) {
+        ev.stopPropagation();
+        const line = this.line;
+        const productName = line.product_id?.display_name || "";
+        this.env.services.dialog.add(ConfirmationDialog, {
+            title: _t("Borrar línea"),
+            body: _t("¿Borrar %s de este traslado?", productName),
+            confirmLabel: _t("Borrar"),
+            cancelLabel: _t("Cancelar"),
+            confirm: () => this.env.model.sgDeleteLine(line),
+            cancel: () => {},
+        });
     },
 });

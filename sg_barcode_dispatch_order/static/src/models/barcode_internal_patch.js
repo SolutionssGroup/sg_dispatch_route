@@ -38,4 +38,44 @@ patch(BarcodePickingModel.prototype, {
             this._sgScrollCurrentLineToTop("product");
         }
     },
+
+    /**
+     * Borra una línea de un traslado interno. Odoo no trae botón de borrar
+     * en la lista de la PDA. Primero se guarda lo pendiente (para que una
+     * línea recién leída ya exista en el servidor y tenga id), luego se
+     * borra el stock.move.line y se quita de la lista en pantalla.
+     */
+    async sgDeleteLine(line) {
+        if (!line || this.record?.picking_type_code !== "internal") {
+            return;
+        }
+        await this.save();
+
+        const wanted = line.lines || [line];
+        const virtualIds = wanted.map((l) => l.virtual_id);
+        const targets = (this.currentState.lines || []).filter(
+            (l) => virtualIds.includes(l.virtual_id) || virtualIds.includes(l.dummy_id)
+        );
+
+        const ids = targets.map((l) => l.id).filter(Boolean);
+        if (ids.length) {
+            await this.orm.unlink("stock.move.line", ids);
+        }
+
+        for (const target of targets) {
+            const index = this.currentState.lines.indexOf(target);
+            if (index >= 0) {
+                this.currentState.lines.splice(index, 1);
+            }
+            this.scannedLinesVirtualId = this.scannedLinesVirtualId.filter(
+                (id) => id !== target.virtual_id
+            );
+            if (this.selectedLineVirtualId === target.virtual_id) {
+                this.selectedLineVirtualId = false;
+            }
+        }
+
+        this._sgRefreshInternalFlags();
+        this.trigger("update");
+    },
 });
