@@ -26,6 +26,25 @@ patch(BarcodePickingModel.prototype, {
         return location;
     },
 
+    /**
+     * Odoo, en cada updateLine, manda la línea al origen que esté activo
+     * (lastScanned.sourceLocation). Es lo que da su origen a una línea
+     * nueva, pero también cambiaba el origen de una línea ya trabajada de un
+     * movimiento anterior en cuanto se leía el origen del siguiente. Aquí,
+     * si la línea ya tiene cantidad, se conserva su origen; una línea nueva
+     * (cantidad 0) sigue tomando el origen activo.
+     */
+    async updateLine(line, args) {
+        if (
+            this.record?.picking_type_code === "internal"
+            && line
+            && line.qty_done > 0
+        ) {
+            args = { ...args, dontUpdateSourceLocation: true };
+        }
+        return super.updateLine(line, args);
+    },
+
     _sgRefreshInternalFlags() {
         this._sgApplyActiveLocationFlags(this.lastScanned?.sourceLocation?.id || false);
         this._sgSetCurrentLine(this.lastScannedLine || false);
