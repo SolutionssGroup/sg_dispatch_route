@@ -184,7 +184,11 @@ class StockMove(models.Model):
 
         first_line, first_qty_move_uom = planned_lines[0]
 
-        product_block = self.product_id.id * 100000
+        # sg_dispatch_order es int4: product.id * 100000 desborda con ids > 21474.
+        picking_product_ids = sorted(
+            set(self.picking_id.move_ids.product_id.ids) | {product.id}
+        )
+        product_block = (picking_product_ids.index(product.id) + 1) * 100000
         order_step = 10
         parent_offset = 9000
 
