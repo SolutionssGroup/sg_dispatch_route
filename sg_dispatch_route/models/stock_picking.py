@@ -43,7 +43,11 @@ class StockPicking(models.Model):
         - primero hijas válidas
         - luego raíz si hace falta
         - excluyendo ubicaciones bloqueadas
+
+        Devuelve los ids de los moves que este reparto ya calculó (los
+        originales y los tramos nuevos).
         """
+        planned_move_ids = set()
         for picking in self.filtered(lambda p: p.state not in ("done", "cancel")):
             route = picking._sg_get_applicable_dispatch_route()
             picking.sg_dispatch_route_id = route.id or False
@@ -93,8 +97,14 @@ class StockPicking(models.Model):
                 and m.product_uom_qty > 0
             )
 
+            moves_before = self.env["stock.move"].search([("picking_id", "=", picking.id)])
             for move in candidate_moves:
                 move._sg_apply_dispatch_route(route)
+            moves_after = self.env["stock.move"].search([("picking_id", "=", picking.id)])
+            planned_move_ids.update(candidate_moves.ids)
+            planned_move_ids.update((moves_after - moves_before).ids)
+
+        return planned_move_ids
 
     def _sg_release_pending_dispatch_reservations(self):
         """
@@ -210,8 +220,13 @@ class StockPicking(models.Model):
         return summary_lines
 
     def action_assign(self):
-        self._sg_prepare_dispatch_route_moves()
-        return super().action_assign()
+        planned_move_ids = self._sg_prepare_dispatch_route_moves()
+        # super().action_assign() vuelve a llamar al reparto por move
+        # (stock_move.py::_sg_prepare_dispatch_route_before_assign). Sin este
+        # contexto repartía otra vez cada tramo recién creado contra la misma
+        # existencia aún sin reservar y los amontonaba en el tramo más lejano.
+        picking = self.with_context(sg_route_planned_move_ids=list(planned_move_ids))
+        return super(StockPicking, picking).action_assign()
 
     def button_validate(self):
         result = super().button_validate()

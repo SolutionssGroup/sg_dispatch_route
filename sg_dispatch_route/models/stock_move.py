@@ -293,11 +293,17 @@ class StockMove(models.Model):
         if relevant_moves:
             relevant_moves._sg_release_phantom_reservations(relevant_moves.product_id)
 
+        planned_move_ids = set(self.env.context.get("sg_route_planned_move_ids") or ())
         for move in self:
             if move.state in ("done", "cancel"):
                 continue
 
             if move.move_line_ids:
+                continue
+
+            # Ya los repartió stock_picking.py::_sg_prepare_dispatch_route_moves
+            # en este mismo "Comprobar disponibilidad".
+            if move.id in planned_move_ids:
                 continue
 
             picking = move.picking_id
