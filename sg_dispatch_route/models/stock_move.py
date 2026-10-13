@@ -125,7 +125,7 @@ class StockMove(models.Model):
             })
         return summary_lines
 
-    def _sg_apply_dispatch_route(self, route):
+    def _sg_apply_dispatch_route(self, route, planned_qty=None):
         self.ensure_one()
 
         if not route:
@@ -152,10 +152,20 @@ class StockMove(models.Model):
             self.sg_dispatch_route_processed = True
             return False
 
-        allocation_plan = route.get_allocation_plan(product, required_qty_base)
+        allocation_plan = route.get_allocation_plan(
+            product, required_qty_base, planned=planned_qty
+        )
 
         if not allocation_plan:
             return False
+
+        # Lo que este reparto aparta se anota para que el siguiente move del
+        # mismo producto, en este mismo Comprobar disponibilidad, no vuelva a
+        # contar esa existencia como libre (aún no está reservada en los quants).
+        if planned_qty is not None:
+            for plan_line in allocation_plan:
+                key = (product.id, plan_line["location"].id)
+                planned_qty[key] = planned_qty.get(key, 0.0) + plan_line["qty"]
 
         planned_lines = []
         remaining_qty_move_uom = original_product_uom_qty
