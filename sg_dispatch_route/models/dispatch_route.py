@@ -192,8 +192,14 @@ class SgDispatchRoute(models.Model):
 
         return self.root_location_id
 
-    def _get_available_qty_in_location(self, product, location):
-        """Cantidad disponible en la UoM base del producto para una ubicación exacta."""
+    def _get_available_qty_in_location(self, product, location, planned=None):
+        """
+        Cantidad disponible en la UoM base del producto para una ubicación exacta.
+
+        `planned` ({(product_id, location_id): qty}) es lo que ya se apartó en
+        este mismo Comprobar disponibilidad para otros moves, aunque todavía no
+        esté reservado en los quants.
+        """
         self.ensure_one()
 
         quants = self.env["stock.quant"].search([
@@ -202,9 +208,11 @@ class SgDispatchRoute(models.Model):
         ])
 
         qty_available = sum(quants.mapped("quantity")) - sum(quants.mapped("reserved_quantity"))
+        if planned:
+            qty_available -= planned.get((product.id, location.id), 0.0)
         return max(qty_available, 0.0)
 
-    def get_locations_sorted_by_dispatch_route(self, product, locations=None):
+    def get_locations_sorted_by_dispatch_route(self, product, locations=None, planned=None):
         """
         Devuelve ubicaciones hijas con disponibilidad, ordenadas por ruta física.
 
@@ -220,7 +228,7 @@ class SgDispatchRoute(models.Model):
         locations = locations if locations is not None else self.get_child_candidate_locations(product)
 
         for location in locations:
-            qty_available = self._get_available_qty_in_location(product, location)
+            qty_available = self._get_available_qty_in_location(product, location, planned=planned)
             if float_compare(
                 qty_available,
                 0.0,
@@ -240,7 +248,7 @@ class SgDispatchRoute(models.Model):
         )
         return result
 
-    def get_allocation_plan(self, product, needed_qty):
+    def get_allocation_plan(self, product, needed_qty, planned=None):
         """
         Plan de asignación de despacho:
 
@@ -262,6 +270,7 @@ class SgDispatchRoute(models.Model):
         child_items = self.get_locations_sorted_by_dispatch_route(
             product=product,
             locations=child_locations,
+            planned=planned,
         )
 
         for item in child_items:
@@ -292,7 +301,9 @@ class SgDispatchRoute(models.Model):
         # 2) Si las hijas no alcanzan, completar con la raíz/padre.
         root_location = self.get_root_fallback_location()
         if root_location:
-            root_available_qty = self._get_available_qty_in_location(product, root_location)
+            root_available_qty = self._get_available_qty_in_location(
+                product, root_location, planned=planned
+            )
 
             if float_compare(
                 root_available_qty,

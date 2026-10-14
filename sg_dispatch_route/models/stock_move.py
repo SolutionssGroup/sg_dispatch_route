@@ -125,7 +125,7 @@ class StockMove(models.Model):
             })
         return summary_lines
 
-    def _sg_apply_dispatch_route(self, route):
+    def _sg_apply_dispatch_route(self, route, planned_qty=None):
         self.ensure_one()
 
         if not route:
@@ -152,10 +152,20 @@ class StockMove(models.Model):
             self.sg_dispatch_route_processed = True
             return False
 
-        allocation_plan = route.get_allocation_plan(product, required_qty_base)
+        allocation_plan = route.get_allocation_plan(
+            product, required_qty_base, planned=planned_qty
+        )
 
         if not allocation_plan:
             return False
+
+        # Lo que este reparto aparta se anota para que el siguiente move del
+        # mismo producto, en este mismo Comprobar disponibilidad, no vuelva a
+        # contar esa existencia como libre (aún no está reservada en los quants).
+        if planned_qty is not None:
+            for plan_line in allocation_plan:
+                key = (product.id, plan_line["location"].id)
+                planned_qty[key] = planned_qty.get(key, 0.0) + plan_line["qty"]
 
         planned_lines = []
         remaining_qty_move_uom = original_product_uom_qty
@@ -285,6 +295,34 @@ class StockMove(models.Model):
         if stray_moves:
             stray_moves._do_unreserve()
 
+    def _sg_release_orphan_mto(self):
+        """
+        Líneas de salida marcadas "bajo pedido" (MTO) que ya no esperan nada.
+
+        La ruta "Replenish on Order (MTO)" deja la línea en espera de una
+        operación de origen (una compra, un traslado). Si esa operación ya se
+        completó, se canceló o nunca existió, la línea se queda en "waiting"
+        para siempre y Comprobar disponibilidad no la reserva aunque haya
+        existencia. Aquí se pasan a "desde stock" solo las que no tienen
+        ninguna operación de origen pendiente; las que sí la tienen (una
+        compra por recibir, por ejemplo) no se tocan.
+        """
+        orphan_moves = self.filtered(
+            lambda m: m.procure_method == "make_to_order"
+            and m.state in ("waiting", "confirmed")
+            and not m.move_line_ids
+            and m.picking_id.picking_type_id.code == "outgoing"
+            and all(orig.state in ("done", "cancel") for orig in m.move_orig_ids)
+        )
+        if not orphan_moves:
+            return
+
+        orphan_moves.write({
+            "procure_method": "make_to_stock",
+            "move_orig_ids": [(5, 0, 0)],
+        })
+        orphan_moves.filtered(lambda m: m.state == "waiting").write({"state": "confirmed"})
+
     def _sg_prepare_dispatch_route_before_assign(self):
         # Fix 2026-09-30: ver el comentario equivalente en
         # stock_picking.py::_sg_prepare_dispatch_route_moves. No se excluye
@@ -298,6 +336,8 @@ class StockMove(models.Model):
         # desde la PDA, y ahí borraría los move lines que la PDA ya cargó
         # ("Registro faltante: stock.move.line"). Solo corre al pulsar
         # "Comprobar disponibilidad" (stock_picking.py::_sg_prepare_dispatch_route_moves).
+        self._sg_release_orphan_mto()
+
         planned_move_ids = set(self.env.context.get("sg_route_planned_move_ids") or ())
         for move in self:
             if move.state in ("done", "cancel"):

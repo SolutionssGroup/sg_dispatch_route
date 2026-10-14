@@ -48,6 +48,7 @@ class StockPicking(models.Model):
         originales y los tramos nuevos).
         """
         planned_move_ids = set()
+        planned_qty = {}
         for picking in self.filtered(lambda p: p.state not in ("done", "cancel")):
             route = picking._sg_get_applicable_dispatch_route()
             picking.sg_dispatch_route_id = route.id or False
@@ -99,7 +100,7 @@ class StockPicking(models.Model):
 
             moves_before = self.env["stock.move"].search([("picking_id", "=", picking.id)])
             for move in candidate_moves:
-                move._sg_apply_dispatch_route(route)
+                move._sg_apply_dispatch_route(route, planned_qty=planned_qty)
             moves_after = self.env["stock.move"].search([("picking_id", "=", picking.id)])
             planned_move_ids.update(candidate_moves.ids)
             planned_move_ids.update((moves_after - moves_before).ids)
@@ -224,7 +225,8 @@ class StockPicking(models.Model):
         # super().action_assign() vuelve a llamar al reparto por move
         # (stock_move.py::_sg_prepare_dispatch_route_before_assign). Sin este
         # contexto repartía otra vez cada tramo recién creado contra la misma
-        # existencia aún sin reservar y los amontonaba en el tramo más lejano.
+        # existencia aún sin reservar y los amontonaba (se reservaba solo una
+        # parte del pedido aunque hubiera existencia de sobra).
         picking = self.with_context(sg_route_planned_move_ids=list(planned_move_ids))
         return super(StockPicking, picking).action_assign()
 
