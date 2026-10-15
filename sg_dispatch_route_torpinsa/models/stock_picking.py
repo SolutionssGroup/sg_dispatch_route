@@ -35,6 +35,7 @@ class StockPicking(models.Model):
                 move._sg_apply_dispatch_route(route, planned_qty=planned_qty)
 
             picking._sg_torpinsa_renumber(route)
+            picking._sg_torpinsa_create_plan_lines()
 
     def _sg_torpinsa_renumber(self, route):
         """
@@ -57,3 +58,41 @@ class StockPicking(models.Model):
         for index, move in enumerate(ordered, start=1):
             if move.sg_dispatch_order != index * 10:
                 move.sg_dispatch_order = index * 10
+
+    def _sg_torpinsa_create_plan_lines(self):
+        """
+        Una linea de operacion con cantidad 0 por movimiento planificado.
+        No reserva nada: solo es lo que la app de Codigo de barras necesita
+        para dibujar la lista (no dibuja movimientos sin linea).
+        """
+        vals_list = []
+        for picking in self:
+            for move in picking.move_ids.filtered(
+                lambda m: m.state not in ("done", "cancel")
+                and not m.move_line_ids
+                and m.product_id.type == "product"
+                and m.product_uom_qty > 0
+            ):
+                vals_list.append({
+                    "picking_id": picking.id,
+                    "move_id": move.id,
+                    "company_id": move.company_id.id,
+                    "product_id": move.product_id.id,
+                    "product_uom_id": move.product_uom.id,
+                    "location_id": move.location_id.id,
+                    "location_dest_id": move.location_dest_id.id,
+                    "quantity": 0,
+                })
+        if vals_list:
+            self.env["stock.move.line"].create(vals_list)
+
+    def _create_backorder(self):
+        backorders = super()._create_backorder()
+        # Lo pendiente se vuelve a planificar con la existencia de ese momento.
+        pending = backorders.filtered(lambda p: p.picking_type_code == "outgoing")
+        for picking in pending:
+            moves = picking.move_ids.filtered(lambda m: m.state not in ("done", "cancel"))
+            moves.move_line_ids.filtered(lambda ml: not ml.quantity).unlink()
+            moves.write({"sg_dispatch_route_processed": False})
+        pending._sg_torpinsa_plan_route()
+        return backorders

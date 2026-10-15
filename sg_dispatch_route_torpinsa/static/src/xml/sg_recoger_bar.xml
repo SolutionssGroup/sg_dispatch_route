@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<templates xml:space="preserve">
+    <t t-inherit="stock_barcode.MainComponent" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o_barcode_lines')]/t[1]" position="before">
+            <div t-if="env.model.record and env.model.record.picking_type_code === 'outgoing'"
+                 class="sg_recoger_bar">
+                <button type="button" class="btn sg_recoger_btn" t-on-click="onSgRecoger">
+                    <i class="fa fa-hand-paper-o me-2"/>Recoger
+                </button>
+            </div>
+        </xpath>
+    </t>
+</templates>

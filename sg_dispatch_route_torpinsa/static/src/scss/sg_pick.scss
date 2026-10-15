@@ -1,0 +1,62 @@
+// Mamey = naranja salmon (paso activo); verde = paso completado.
+$sg-mamey: #f28c4b;
+$sg-mamey-soft: #ffe1cc;
+$sg-mamey-dark: #7a3a10;
+$sg-green: #34a853;
+$sg-green-soft: #d9f2e0;
+
+.sg_pick_dialog {
+    .sg_pick_head { margin-bottom: 12px; }
+    .sg_pick_name { font-weight: 700; font-size: 1.1rem; }
+    .sg_pick_ratio { font-size: 2rem; font-weight: 700; line-height: 1.1; margin-top: 4px; }
+    .sg_pick_ratio_total { font-size: 1.2rem; font-weight: 500; color: #6c757d; }
+
+    .sg_pick_step {
+        display: flex; align-items: center; gap: 10px;
+        border: 2px solid #dee2e6; border-radius: 10px;
+        padding: 10px 12px; margin-bottom: 10px;
+        background: #f3f3f3; color: #8a8a8a;
+        &.is_active {
+            background: $sg-mamey-soft; border-color: $sg-mamey; color: $sg-mamey-dark;
+            box-shadow: 0 0 0 3px rgba($sg-mamey, .25);
+        }
+        &.is_done { background: $sg-green-soft; border-color: $sg-green; color: #1e6b34; }
+        .sg_pick_step_body { flex: 1; }
+        .sg_pick_step_title { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+        .sg_pick_step_hint { font-weight: 700; font-size: 1.1rem; }
+        .sg_pick_step_value { font-weight: 700; font-size: 1.1rem; }
+        .sg_pick_step_sub { font-size: .85rem; }
+    }
+    .sg_pick_arrow {
+        color: #e8672a; font-size: 1.6rem;
+        animation: sg_pick_nudge .8s ease-in-out infinite;
+    }
+    .sg_pick_warn {
+        border: 2px solid $sg-mamey; background: #fff4ea; color: $sg-mamey-dark;
+        border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;
+        .sg_pick_warn_btns { display: flex; gap: 8px; margin-top: 8px; }
+    }
+    .sg_pick_error { color: #c0392b; font-weight: 600; margin-bottom: 8px; }
+    .sg_pick_keypad {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+        .btn { height: 52px; font-size: 1.1rem; }
+    }
+}
+
+.sg_pick_btn_accent {
+    background-color: $sg-mamey; border-color: $sg-mamey; color: #fff; font-weight: 700;
+    &:disabled { opacity: .45; }
+}
+
+.sg_recoger_bar {
+    position: sticky; top: 0; z-index: 5; padding: 8px; background: #fff;
+    .sg_recoger_btn {
+        width: 100%; font-size: 1.2rem; font-weight: 700; padding: 12px;
+        background-color: $sg-mamey; border-color: $sg-mamey; color: #fff;
+    }
+}
+
+@keyframes sg_pick_nudge {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(6px); }
+}

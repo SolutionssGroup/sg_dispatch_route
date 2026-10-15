@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<templates xml:space="preserve">
+    <t t-name="sg_dispatch_route_torpinsa.SgPickDialog">
+        <Dialog title="'Recoger'" size="'md'" contentClass="'sg_pick_dialog'">
+            <div class="sg_pick_head">
+                <div class="sg_pick_name" t-esc="productName"/>
+                <div class="sg_pick_meta text-muted">
+                    <span t-if="productCode">Ref: <b t-esc="productCode"/></span>
+                    <span t-if="productBarcode"> · Código: <b t-esc="productBarcode"/></span>
+                </div>
+                <div class="sg_pick_ratio">
+                    <span t-att-class="qtyOverDemand ? 'text-danger' : ''" t-esc="displayQty"/>
+                    <span class="sg_pick_ratio_total"> / <t t-esc="demand"/> <t t-esc="uom"/></span>
+                </div>
+            </div>
+
+            <div t-att-class="stepClass('location')">
+                <span class="sg_pick_arrow" t-if="activeStep === 'location'"><i class="fa fa-arrow-right"/></span>
+                <div class="sg_pick_step_body">
+                    <div class="sg_pick_step_title">1 · Ubicación</div>
+                    <t t-if="state.locationOk">
+                        <div class="sg_pick_step_value"><i class="fa fa-check"/> <t t-esc="state.location.display_name"/></div>
+                    </t>
+                    <t t-else="">
+                        <div class="sg_pick_step_hint">Leer ubicación</div>
+                        <div class="sg_pick_step_sub">Plan: <b t-esc="plannedLocation"/></div>
+                    </t>
+                </div>
+            </div>
+
+            <div t-if="state.pendingLocation" class="sg_pick_warn">
+                <div>Esta no es la ubicación planificada (<b t-esc="plannedLocation"/>).</div>
+                <div>¿Recoger desde <b t-esc="state.pendingLocation.display_name"/>?</div>
+                <div class="sg_pick_warn_btns">
+                    <button type="button" class="btn btn-secondary" t-on-click="onRejectLocation">No</button>
+                    <button type="button" class="btn sg_pick_btn_accent" t-on-click="onAcceptLocation">Sí, recoger desde aquí</button>
+                </div>
+            </div>
+
+            <div t-att-class="stepClass('product')">
+                <span class="sg_pick_arrow" t-if="activeStep === 'product'"><i class="fa fa-arrow-right"/></span>
+                <div class="sg_pick_step_body">
+                    <div class="sg_pick_step_title">2 · Producto</div>
+                    <t t-if="state.productOk">
+                        <div class="sg_pick_step_value"><i class="fa fa-check"/> <t t-esc="productCode or productName"/></div>
+                    </t>
+                    <t t-elif="activeStep === 'product'">
+                        <div class="sg_pick_step_hint">Leer producto</div>
+                    </t>
+                </div>
+            </div>
+
+            <div t-att-class="stepClass('qty')">
+                <span class="sg_pick_arrow" t-if="activeStep === 'qty'"><i class="fa fa-arrow-right"/></span>
+                <div class="sg_pick_step_body">
+                    <div class="sg_pick_step_title">3 · Cantidad</div>
+                    <t t-if="activeStep === 'qty'">
+                        <div class="sg_pick_step_hint">Poner cantidad</div>
+                        <div class="sg_pick_step_sub">Cada lectura del producto suma 1</div>
+                    </t>
+                </div>
+            </div>
+
+            <div t-if="state.error" class="sg_pick_error" t-esc="state.error"/>
+            <div t-if="qtyOverDemand" class="sg_pick_error">No puedes pasar de lo pedido (<t t-esc="demand"/>).</div>
+
+            <div t-if="state.productOk" class="sg_pick_keypad">
+                <t t-foreach="['7','8','9','4','5','6','1','2','3','.','0']" t-as="d" t-key="d">
+                    <button type="button" class="btn btn-secondary" t-on-click="() => this.onDigit(d)" t-esc="d"/>
+                </t>
+                <button type="button" class="btn btn-outline-secondary" t-on-click="onBackspace">
+                    <i class="fa fa-long-arrow-left"/>
+                </button>
+            </div>
+
+            <t t-set-slot="footer">
+                <button type="button" class="btn btn-secondary" t-on-click="onClose">Cerrar</button>
+                <button type="button" class="btn sg_pick_btn_accent" t-att-disabled="!canConfirm" t-on-click="onConfirm">OK</button>
+            </t>
+        </Dialog>
+    </t>
+</templates>
