@@ -20,21 +20,12 @@
                 <div class="sg_pick_step_body">
                     <div class="sg_pick_step_title">1 · Ubicación</div>
                     <t t-if="state.locationOk">
-                        <div class="sg_pick_step_value"><i class="fa fa-check"/> <t t-esc="state.location.display_name"/></div>
+                        <div class="sg_pick_step_value"><i class="fa fa-check"/> <t t-esc="shortLocation(state.location)"/></div>
                     </t>
                     <t t-else="">
                         <div class="sg_pick_step_hint">Leer ubicación</div>
-                        <div class="sg_pick_step_sub">Plan: <b t-esc="plannedLocation"/></div>
+                        <div class="sg_pick_step_sub">Ve a: <b class="sg_pick_goto" t-esc="plannedLocation"/></div>
                     </t>
-                </div>
-            </div>
-
-            <div t-if="state.pendingLocation" class="sg_pick_warn">
-                <div>Esta no es la ubicación planificada (<b t-esc="plannedLocation"/>).</div>
-                <div>¿Recoger desde <b t-esc="state.pendingLocation.display_name"/>?</div>
-                <div class="sg_pick_warn_btns">
-                    <button type="button" class="btn btn-secondary" t-on-click="onRejectLocation">No</button>
-                    <button type="button" class="btn sg_pick_btn_accent" t-on-click="onAcceptLocation">Sí, recoger desde aquí</button>
                 </div>
             </div>
 

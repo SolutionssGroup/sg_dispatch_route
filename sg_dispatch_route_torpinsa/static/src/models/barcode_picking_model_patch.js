@@ -82,43 +82,23 @@ patch(BarcodePickingModel.prototype, {
 
     /**
      * Aplica lo recogido en el modal. `qty` es el TOTAL de la linea (Odoo
-     * suma, por eso se manda la diferencia). Si la ubicacion leida no es la
-     * del plan, la linea pasa a esa ubicacion.
+     * suma, por eso se manda la diferencia). Siempre se recoge de la
+     * ubicacion planificada de la linea.
      */
-    async sgApplyPick(line, qty, location) {
+    async sgApplyPick(line, qty) {
         if (!line) {
             return;
         }
         const delta = qty - (this.getQtyDone(line) || 0);
-        const relocate = Boolean(
-            location && line.location_id && location.id !== line.location_id.id
-        );
-        if (!delta && !relocate) {
+        if (!delta) {
             return;
         }
-        await this.actionMutex.exec(async () => {
-            if (relocate) {
-                if (this.lastScanned) {
-                    this.lastScanned.sourceLocation = location;
-                }
-                await this.updateLine(line, { qty_done: delta });
-            } else {
-                await this.updateLine(line, {
-                    qty_done: delta,
-                    dontUpdateSourceLocation: true,
-                });
-            }
-        });
-        if (relocate && line.location_id?.id !== location.id) {
-            // Respaldo: si Odoo no movio la linea, se fuerza en el servidor.
-            await this.save();
-            if (line.id) {
-                await this.orm.write("stock.move.line", [line.id], {
-                    location_id: location.id,
-                });
-            }
-            line.location_id = location;
-        }
+        await this.actionMutex.exec(() =>
+            this.updateLine(line, {
+                qty_done: delta,
+                dontUpdateSourceLocation: true,
+            })
+        );
         this.trigger("update");
     },
 });

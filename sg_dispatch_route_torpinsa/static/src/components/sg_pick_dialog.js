@@ -31,7 +31,6 @@ export class SgPickDialog extends Component {
             locationOk: alreadyPicked,
             productOk: alreadyPicked,
             location: alreadyPicked ? line.location_id : null,
-            pendingLocation: null,
             qty: done,
             keypad: "",
             error: "",
@@ -102,9 +101,14 @@ export class SgPickDialog extends Component {
         );
     }
 
+    shortLocation(location) {
+        const name = (location && (location.display_name || location.name)) || "";
+        return name.split("/").pop();
+    }
+
     get plannedLocation() {
         const line = this.line;
-        return (line && line.location_id && line.location_id.display_name) || "";
+        return line ? this.shortLocation(line.location_id) : "";
     }
 
     get activeStep() {
@@ -194,24 +198,18 @@ export class SgPickDialog extends Component {
     }
 
     onLocationRead(location, line) {
-        if (location.id === line.location_id.id) {
-            this.state.location = location;
-            this.state.pendingLocation = null;
-            this.state.locationOk = true;
-            return;
+        if (location.id !== line.location_id.id) {
+            // Solo se recoge de la ubicacion planificada: se dirige al operador.
+            return this.fail(
+                _t(
+                    "Ubicación incorrecta: leíste %s. Ve a %s.",
+                    this.shortLocation(location),
+                    this.plannedLocation
+                )
+            );
         }
-        // Otra ubicacion distinta a la del plan: se acepta con aviso.
-        this.state.pendingLocation = location;
-    }
-
-    onAcceptLocation() {
-        this.state.location = this.state.pendingLocation;
-        this.state.pendingLocation = null;
+        this.state.location = location;
         this.state.locationOk = true;
-    }
-
-    onRejectLocation() {
-        this.state.pendingLocation = null;
     }
 
     onDigit(d) {
@@ -245,12 +243,11 @@ export class SgPickDialog extends Component {
             return;
         }
         const line = this.line;
-        const location = this.state.location;
         const qty = this.state.qty;
         const onFinished = this.props.onFinished;
         const model = this.props.model;
         this.props.close();
-        await model.sgApplyPick(line, qty, location);
+        await model.sgApplyPick(line, qty);
         if (onFinished) {
             onFinished();
         }
