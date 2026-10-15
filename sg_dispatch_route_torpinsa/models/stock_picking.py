@@ -96,3 +96,48 @@ class StockPicking(models.Model):
             moves.write({"sg_dispatch_route_processed": False})
         pending._sg_torpinsa_plan_route()
         return backorders
+
+    def _sg_torpinsa_migrate_to_guided(self):
+        """
+        Pasa pickings de salida abiertos del flujo anterior (con reservas, o
+        sin lineas) al despacho guiado: suelta las reservas, conserva los
+        tramos que ya estaban repartidos, reparte los que no y crea las
+        lineas de plan. Los pickings con algo ya recogido se omiten.
+        """
+        migrated = self.browse()
+        skipped = self.browse()
+        for picking in self.filtered(
+            lambda p: p.picking_type_code == "outgoing"
+            and p.state in ("confirmed", "waiting", "assigned")
+        ):
+            open_moves = picking.move_ids.filtered(
+                lambda m: m.state not in ("done", "cancel")
+            )
+            if any(m.picked for m in open_moves):
+                skipped |= picking
+                continue
+
+            already_planned = open_moves.filtered("sg_dispatch_route_processed")
+            reserved = open_moves.filtered(
+                lambda m: m.state in ("assigned", "partially_available")
+            )
+            if reserved:
+                reserved._do_unreserve()
+            # _do_unreserve de la base apaga la marca: se conserva el reparto
+            # que ya tenian esos tramos.
+            already_planned.write({"sg_dispatch_route_processed": True})
+            open_moves.move_line_ids.filtered(lambda ml: not ml.quantity).unlink()
+            migrated |= picking
+
+        migrated._sg_torpinsa_plan_route()
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Despacho guiado Torpinsa",
+                "message": "Migrados: %s. Omitidos (ya tienen algo recogido): %s."
+                % (len(migrated), len(skipped)),
+                "type": "success" if not skipped else "warning",
+                "sticky": True,
+            },
+        }

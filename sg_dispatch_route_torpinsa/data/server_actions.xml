@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Migracion manual: seleccionar pickings de salida abiertos en la lista y
+         ejecutar Accion > "Planificar ruta Torpinsa (despacho guiado)". -->
+    <record id="action_sg_torpinsa_migrate_to_guided" model="ir.actions.server">
+        <field name="name">Planificar ruta Torpinsa (despacho guiado)</field>
+        <field name="model_id" ref="stock.model_stock_picking"/>
+        <field name="binding_model_id" ref="stock.model_stock_picking"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records._sg_torpinsa_migrate_to_guided()</field>
+        <field name="groups_id" eval="[(4, ref('stock.group_stock_manager'))]"/>
+    </record>
+</odoo>
