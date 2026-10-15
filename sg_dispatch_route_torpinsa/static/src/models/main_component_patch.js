@@ -2,6 +2,7 @@
 
 import { onMounted, onPatched } from "@odoo/owl";
 import { patch } from "@web/core/utils/patch";
+import { useBus } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import MainComponent from "@stock_barcode/components/main";
 import { sgOpenPickDialog } from "../components/sg_pick_dialog";
@@ -20,8 +21,24 @@ patch(MainComponent.prototype, {
                 }
             }
         };
+        if (this.env.model) {
+            useBus(this.env.model, "sg-exit-list", () => this.sgExitToList());
+        }
         onMounted(hideAddProduct);
         onPatched(hideAddProduct);
+    },
+
+    // Sale a la lista de operaciones (migas de pan anteriores).
+    sgExitToList() {
+        const config = this.env.config;
+        const action = this.env.services && this.env.services.action;
+        if (config && typeof config.historyBack === "function") {
+            config.historyBack();
+        } else if (action && typeof action.restore === "function") {
+            action.restore();
+        } else {
+            window.history.back();
+        }
     },
 
     // Boton "Recoger": abre la primera linea pendiente y, al dar OK,

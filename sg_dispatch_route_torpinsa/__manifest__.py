@@ -8,6 +8,7 @@ Personalizacion exclusiva de Torpinsa sobre sg_dispatch_route:
 - Orden de ruta por nivel, tramo y posicion (numerico, de mayor a menor).
 - Se oculta el boton Comprobar disponibilidad.
 - El conduce muestra solo lo despachado.
+- Al validar sale a la lista de operaciones y el aviso del backorder se ve limpio.
 - La app de Codigo de barras ya no filtra por "Preparado" (no hay reservas).
     """,
     "author": "Solutions Group",
@@ -26,6 +27,7 @@ Personalizacion exclusiva de Torpinsa sobre sg_dispatch_route:
     ],
     "assets": {
         "web.assets_backend": [
+            "sg_dispatch_route_torpinsa/static/src/notification_cleaner.js",
             "sg_dispatch_route_torpinsa/static/src/components/sg_pick_dialog.js",
             "sg_dispatch_route_torpinsa/static/src/components/sg_pick_dialog.xml",
             "sg_dispatch_route_torpinsa/static/src/models/barcode_picking_model_patch.js",

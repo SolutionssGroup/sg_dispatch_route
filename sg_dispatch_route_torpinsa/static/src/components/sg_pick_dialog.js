@@ -165,13 +165,43 @@ export class SgPickDialog extends Component {
         this.state.error = message;
     }
 
+    /**
+     * La compañia usa la nomenclatura GS1: un codigo de producto que empieza
+     * por 21 (serie), 30/37 (cantidad) o 10 (lote) se interpreta como otra
+     * cosa y no como producto. Por eso primero se compara el codigo leido,
+     * tal cual, con el de la linea y con los demas productos del picking.
+     */
+    sgMatchRaw(barcode, line) {
+        const raw = String(barcode || "").trim();
+        if (!raw) {
+            return null;
+        }
+        const location = line.location_id;
+        if (
+            raw === location.barcode ||
+            raw.toUpperCase() === this.shortLocation(location).toUpperCase()
+        ) {
+            return { location };
+        }
+        if (line.product_id.barcode && raw === line.product_id.barcode) {
+            return { product: line.product_id };
+        }
+        const other = (this.props.model.currentState?.lines || []).find(
+            (l) => l.product_id && l.product_id.barcode === raw
+        );
+        return other ? { product: other.product_id } : null;
+    }
+
     async onBarcode(barcode) {
         this.state.error = "";
-        let data;
-        try {
-            data = await this.props.model._parseBarcode(barcode);
-        } catch (e) {
-            data = {};
+        const currentLine = this.line;
+        let data = currentLine ? this.sgMatchRaw(barcode, currentLine) : null;
+        if (!data) {
+            try {
+                data = await this.props.model._parseBarcode(barcode);
+            } catch (e) {
+                data = {};
+            }
         }
         const line = this.line;
         if (!line || !data) {

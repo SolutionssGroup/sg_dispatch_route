@@ -76,7 +76,24 @@ patch(BarcodePickingModel.prototype, {
                 return;
             }
         }
-        return super.validate(...arguments);
+        const result = await super.validate(...arguments);
+        if (this.sgIsOutgoing) {
+            // Si el picking quedo validado, se sale a la lista de operaciones
+            // (si abrio el asistente de backorder todavia no esta "done").
+            try {
+                const [picking] = await this.orm.read(
+                    "stock.picking",
+                    [this.record.id],
+                    ["state"]
+                );
+                if (picking && picking.state === "done") {
+                    this.trigger("sg-exit-list");
+                }
+            } catch (e) {
+                // sin conexion o sin permiso: se queda en la pantalla
+            }
+        }
+        return result;
     },
 
     /** Siguiente linea pendiente de la ruta que no se haya visitado ya. */
