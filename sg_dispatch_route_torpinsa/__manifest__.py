@@ -7,6 +7,7 @@ Personalizacion exclusiva de Torpinsa sobre sg_dispatch_route:
 - La ruta se calcula al confirmar el picking de salida (sin reservar).
 - Orden de ruta por nivel, tramo y posicion (numerico, de mayor a menor).
 - Se oculta el boton Comprobar disponibilidad.
+- La app de Codigo de barras ya no filtra por "Preparado" (no hay reservas).
     """,
     "author": "Solutions Group",
     "website": "https://www.solutionsgroup.do",
@@ -17,6 +18,7 @@ Personalizacion exclusiva de Torpinsa sobre sg_dispatch_route:
     ],
     "data": [
         "views/stock_picking_views.xml",
+        "data/barcode_action.xml",
     ],
     "installable": True,
     "application": False,

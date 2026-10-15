@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Torpinsa no reserva: los pickings quedan en "Esperando" (confirmed),
+         no "Preparado" (assigned). El filtro por defecto "Preparado" de la
+         app de Codigo de barras los ocultaba. -->
+    <record id="stock_barcode.stock_picking_action_kanban" model="ir.actions.act_window">
+        <field name="context">{
+            'contact_display': 'partner_address',
+            'search_default_to_do_transfers': 1,
+        }</field>
+    </record>
+</odoo>
