@@ -90,6 +90,22 @@ class StockPicking(models.Model):
             if relevant_moves:
                 relevant_moves._sg_release_phantom_reservations(relevant_moves.product_id)
 
+            # Fix 2026-10-15 (SO10124 / AP/OUT/11344, tornillo agregado a mano
+            # en el conduce que no reservaba aunque habia 272 libres): una
+            # linea agregada a mano a un conduce ya confirmado queda marcada
+            # como 'hecha' (picked) aunque no tenga ninguna cantidad cargada.
+            # Odoo estandar no reserva un move picked, asi que Comprobar
+            # disponibilidad la ignoraba para siempre. Un move sin move lines
+            # no tiene nada realmente hecho: se le quita la marca para que
+            # pueda reservar. Las lineas con cantidad cargada no se tocan.
+            stuck_picked_moves = picking.move_ids.filtered(
+                lambda m: m.state in ("confirmed", "waiting", "partially_available")
+                and m.picked
+                and not m.move_line_ids
+            )
+            if stuck_picked_moves:
+                stuck_picked_moves.write({"picked": False})
+
             candidate_moves = picking.move_ids.filtered(
                 lambda m: m.state in ("confirmed", "waiting", "partially_available")
                 and not m.move_line_ids
