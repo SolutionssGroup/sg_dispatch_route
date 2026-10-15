@@ -9,14 +9,10 @@
                     <span t-if="productCode">Ref: <b t-esc="productCode"/></span>
                     <span t-if="productBarcode"> · Código: <b t-esc="productBarcode"/></span>
                 </div>
-                <div class="sg_pick_ratio">
-                    <span t-att-class="qtyOverDemand ? 'text-danger' : ''" t-esc="displayQty"/>
-                    <span class="sg_pick_ratio_total"> / <t t-esc="demand"/> <t t-esc="uom"/></span>
-                </div>
             </div>
 
             <div t-att-class="stepClass('location')">
-                <span class="sg_pick_arrow" t-if="activeStep === 'location'"><i class="fa fa-arrow-right"/></span>
+                <span class="sg_pick_arrow" t-if="arrowStep === 'location'"><i class="fa fa-arrow-right"/></span>
                 <div class="sg_pick_step_body">
                     <div class="sg_pick_step_title">1 · Ubicación</div>
                     <t t-if="state.locationOk">
@@ -30,7 +26,7 @@
             </div>
 
             <div t-att-class="stepClass('product')">
-                <span class="sg_pick_arrow" t-if="activeStep === 'product'"><i class="fa fa-arrow-right"/></span>
+                <span class="sg_pick_arrow" t-if="arrowStep === 'product'"><i class="fa fa-arrow-right"/></span>
                 <div class="sg_pick_step_body">
                     <div class="sg_pick_step_title">2 · Producto</div>
                     <t t-if="state.productOk">
@@ -42,32 +38,25 @@
                 </div>
             </div>
 
-            <div t-att-class="stepClass('qty')">
-                <span class="sg_pick_arrow" t-if="activeStep === 'qty'"><i class="fa fa-arrow-right"/></span>
+            <div t-att-class="stepClass('qty') + (state.productOk ? ' sg_pick_tappable' : '')"
+                 t-on-click="onOpenKeypad">
+                <span class="sg_pick_arrow" t-if="arrowStep === 'qty'"><i class="fa fa-arrow-right"/></span>
                 <div class="sg_pick_step_body">
                     <div class="sg_pick_step_title">3 · Cantidad</div>
-                    <t t-if="activeStep === 'qty'">
-                        <div class="sg_pick_step_hint">Poner cantidad</div>
-                        <div class="sg_pick_step_sub">Cada lectura del producto suma 1</div>
-                    </t>
+                    <div class="sg_pick_qty_value">
+                        <i t-if="qtyComplete" class="fa fa-check"/>
+                        <t t-esc="displayQty"/> / <t t-esc="demand"/>
+                        <span class="sg_pick_qty_uom" t-esc="uom"/>
+                    </div>
+                    <div t-if="state.productOk" class="sg_pick_step_sub">Toca para escribir la cantidad</div>
                 </div>
             </div>
 
             <div t-if="state.error" class="sg_pick_error" t-esc="state.error"/>
-            <div t-if="qtyOverDemand" class="sg_pick_error">No puedes pasar de lo pedido (<t t-esc="demand"/>).</div>
-
-            <div t-if="state.productOk" class="sg_pick_keypad">
-                <t t-foreach="['7','8','9','4','5','6','1','2','3','.','0']" t-as="d" t-key="d">
-                    <button type="button" class="btn btn-secondary" t-on-click="() => this.onDigit(d)" t-esc="d"/>
-                </t>
-                <button type="button" class="btn btn-outline-secondary" t-on-click="onBackspace">
-                    <i class="fa fa-long-arrow-left"/>
-                </button>
-            </div>
 
             <t t-set-slot="footer">
                 <button type="button" class="btn btn-secondary" t-on-click="onClose">Cerrar</button>
-                <button type="button" class="btn sg_pick_btn_accent" t-att-disabled="!canConfirm" t-on-click="onConfirm">OK</button>
+                <button type="button" class="btn sg_pick_btn_accent" t-att-disabled="!canConfirm" t-on-click="onConfirm"><t t-esc="okLabel"/></button>
             </t>
         </Dialog>
     </t>

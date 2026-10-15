@@ -4,13 +4,15 @@ import { Component, onMounted, onWillDestroy, useState } from "@odoo/owl";
 import { Dialog } from "@web/core/dialog/dialog";
 import { _t } from "@web/core/l10n/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { SgQuantityDialog } from "@sg_barcode_dispatch_order/components/sg_quantity_dialog";
 
 /**
  * Modal guiado de recogida (Torpinsa). Tres pasos, en este orden:
  *   1) leer la UBICACION  2) leer el PRODUCTO  3) poner la CANTIDAD.
- * Solo el paso activo va en mamey (con flecha); los completados en verde.
- * No hay reserva: el inventario se descuenta de la ubicacion leida cuando
- * se valida el picking.
+ * El paso activo va en mamey (con flecha); los completados en verde. El
+ * paso 3 es verde solo cuando la cantidad completa lo pedido; si falta, se
+ * queda en mamey. No hay reserva: el inventario se descuenta de la
+ * ubicacion leida cuando se valida el picking.
  */
 export class SgPickDialog extends Component {
     static template = "sg_dispatch_route_torpinsa.SgPickDialog";
@@ -24,6 +26,7 @@ export class SgPickDialog extends Component {
 
     setup() {
         this.barcode = useService("barcode");
+        this.dialog = useService("dialog");
         const line = this.line;
         const done = line ? this.props.model.getQtyDone(line) : 0;
         const alreadyPicked = done > 0;
@@ -32,10 +35,8 @@ export class SgPickDialog extends Component {
             productOk: alreadyPicked,
             location: alreadyPicked ? line.location_id : null,
             qty: done,
-            keypad: "",
             error: "",
         });
-        this._freshStart = true;
 
         this.props.model.sgPickSession = this;
         useBus(this.barcode.bus, "barcode_scanned", (ev) =>
@@ -61,6 +62,11 @@ export class SgPickDialog extends Component {
                 this.props.model.sgPickSession = null;
             }
         });
+    }
+
+    get okLabel() {
+        // Texto fijo: "OK" en el XML se traduce a "De acuerdo".
+        return "OK";
     }
 
     get line() {
@@ -121,10 +127,24 @@ export class SgPickDialog extends Component {
         return "qty";
     }
 
+    /** Cantidad contada completa lo pedido (10/10). */
+    get qtyComplete() {
+        return this.state.productOk && this.demand > 0 && this.state.qty >= this.demand;
+    }
+
+    /** La flecha apunta al paso que toca; en cantidad, solo mientras falte. */
+    get arrowStep() {
+        if (this.activeStep === "qty" && this.qtyComplete) {
+            return null;
+        }
+        return this.activeStep;
+    }
+
     stepClass(step) {
         const isDone =
             (step === "location" && this.state.locationOk) ||
-            (step === "product" && this.state.productOk);
+            (step === "product" && this.state.productOk) ||
+            (step === "qty" && this.qtyComplete);
         if (isDone) {
             return "sg_pick_step is_done";
         }
@@ -133,17 +153,8 @@ export class SgPickDialog extends Component {
             : "sg_pick_step is_wait";
     }
 
-    get qtyOverDemand() {
-        return this.demand > 0 && this.state.qty > this.demand;
-    }
-
     get canConfirm() {
-        return (
-            this.state.locationOk &&
-            this.state.productOk &&
-            this.state.qty > 0 &&
-            !this.qtyOverDemand
-        );
+        return this.state.locationOk && this.state.productOk && this.state.qty > 0;
     }
 
     get displayQty() {
@@ -194,7 +205,6 @@ export class SgPickDialog extends Component {
             return this.fail(_t("Ya completaste lo pedido."));
         }
         this.state.qty += step;
-        this._freshStart = true;
     }
 
     onLocationRead(location, line) {
@@ -212,30 +222,21 @@ export class SgPickDialog extends Component {
         this.state.locationOk = true;
     }
 
-    onDigit(d) {
+    /** Tocar el campo de cantidad abre un teclado numerico en modal. */
+    onOpenKeypad() {
         if (!this.state.productOk) {
             return;
         }
-        this.state.error = "";
-        if (this._freshStart) {
-            this.state.keypad = "";
-            this._freshStart = false;
-        }
-        if (d === "." && this.state.keypad.includes(".")) {
-            return;
-        }
-        this.state.keypad =
-            d === "." && !this.state.keypad ? "0." : this.state.keypad + d;
-        this.state.qty = parseFloat(this.state.keypad) || 0;
-    }
-
-    onBackspace() {
-        if (!this.state.productOk) {
-            return;
-        }
-        this._freshStart = false;
-        this.state.keypad = this.state.keypad.slice(0, -1);
-        this.state.qty = parseFloat(this.state.keypad) || 0;
+        this.dialog.add(SgQuantityDialog, {
+            productName: this.productName,
+            initialQty: this.state.qty,
+            demandQty: this.demand,
+            uom: this.uom,
+            confirm: (delta) => {
+                this.state.error = "";
+                this.state.qty = Math.max(0, this.state.qty + delta);
+            },
+        });
     }
 
     async onConfirm() {

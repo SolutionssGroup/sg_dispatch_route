@@ -27,6 +27,9 @@ $sg-green-soft: #d9f2e0;
         .sg_pick_step_value { font-weight: 700; font-size: 1.1rem; }
         .sg_pick_step_sub { font-size: .85rem; }
         .sg_pick_goto { font-size: 1.3rem; }
+        .sg_pick_qty_value { font-weight: 700; font-size: 1.8rem; line-height: 1.1; }
+        .sg_pick_qty_uom { font-size: 1rem; font-weight: 500; }
+        &.sg_pick_tappable { cursor: pointer; }
     }
     .sg_pick_arrow {
         color: #e8672a; font-size: 1.6rem;

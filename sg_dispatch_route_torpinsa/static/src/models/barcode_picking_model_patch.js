@@ -17,6 +17,14 @@ patch(BarcodePickingModel.prototype, {
         return this.record?.picking_type_code === "outgoing";
     },
 
+    // No se agregan productos nuevos desde la PDA en pickings de salida.
+    get canCreateNewLine() {
+        if (this.sgIsOutgoing) {
+            return false;
+        }
+        return super.canCreateNewLine;
+    },
+
     // La demanda sale del movimiento (no de la reserva, que aqui es 0).
     getQtyDemand(line) {
         if (this.sgIsOutgoing && line && Number.isFinite(line.sg_demand_qty)) {
