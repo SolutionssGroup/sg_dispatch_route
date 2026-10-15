@@ -1,8 +1,7 @@
 /** @odoo-module **/
 
-import { onMounted, onPatched } from "@odoo/owl";
+import { onMounted, onPatched, onWillUnmount } from "@odoo/owl";
 import { patch } from "@web/core/utils/patch";
-import { useBus } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import MainComponent from "@stock_barcode/components/main";
 import { sgOpenPickDialog } from "../components/sg_pick_dialog";
@@ -21,15 +20,32 @@ patch(MainComponent.prototype, {
                 }
             }
         };
-        if (this.env.model) {
-            useBus(this.env.model, "sg-exit-list", () => this.sgExitToList());
-        }
+        // El aviso de salida se enlaza al montar: en setup el modelo puede
+        // no estar disponible todavia.
+        this._sgOnExitList = () => this.sgExitToList();
+        onMounted(() => {
+            this.env.model?.addEventListener("sg-exit-list", this._sgOnExitList);
+        });
+        onWillUnmount(() => {
+            this.env.model?.removeEventListener("sg-exit-list", this._sgOnExitList);
+        });
         onMounted(hideAddProduct);
         onPatched(hideAddProduct);
     },
 
-    // Sale a la lista de operaciones (migas de pan anteriores).
-    sgExitToList() {
+    // Sale a la lista de operaciones. Se usa primero la misma funcion que la
+    // flecha "<-" de la barra de arriba; si no existe, las migas de pan.
+    async sgExitToList() {
+        const noop = () => {};
+        const fakeEvent = { stopPropagation: noop, preventDefault: noop };
+        try {
+            if (typeof this.exit === "function") {
+                await this.exit(fakeEvent);
+                return;
+            }
+        } catch (e) {
+            console.warn("[sg] exit() fallo, se usan las migas de pan", e);
+        }
         const config = this.env.config;
         const action = this.env.services && this.env.services.action;
         if (config && typeof config.historyBack === "function") {
