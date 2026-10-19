@@ -1,4 +1,5 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 from odoo.tools.float_utils import float_is_zero
 
 
@@ -246,7 +247,45 @@ class StockPicking(models.Model):
         picking = self.with_context(sg_route_planned_move_ids=list(planned_move_ids))
         return super(StockPicking, picking).action_assign()
 
+    def _sg_check_internal_same_location_lines(self):
+        """
+        Un traslado interno cuya línea tiene el mismo origen y destino no
+        mueve nada de inventario pero queda 'Hecho'. Pasó en AP/INT/03127 y
+        03148 (baterías): el documento decía AP/Stock -> Asignación pero la
+        línea quedó Asignación -> Asignación. Se bloquea la validación para
+        que no quede un 'Hecho' sin efecto.
+        """
+        for picking in self:
+            if picking.picking_type_id.code != "internal":
+                continue
+            lines = picking.move_line_ids
+            lines = lines.filtered("picked") or lines
+            bad_lines = lines.filtered(
+                lambda ml: ml.quantity > 0
+                and ml.location_id
+                and ml.location_id == ml.location_dest_id
+            )
+            if bad_lines:
+                details = "\n".join(
+                    "- %s: %s -> %s" % (
+                        ml.product_id.display_name,
+                        ml.location_id.display_name,
+                        ml.location_dest_id.display_name,
+                    )
+                    for ml in bad_lines
+                )
+                raise UserError(
+                    _(
+                        "No se puede validar %(picking)s: estas líneas tienen el mismo "
+                        "origen y destino y no moverían inventario:\n%(lines)s\n\n"
+                        "Lea la ubicación de origen correcta y luego la de destino.",
+                        picking=picking.name,
+                        lines=details,
+                    )
+                )
+
     def button_validate(self):
+        self._sg_check_internal_same_location_lines()
         result = super().button_validate()
 
         # Si Odoo abre wizard de backorder, la limpieza se hará al confirmar el wizard.
