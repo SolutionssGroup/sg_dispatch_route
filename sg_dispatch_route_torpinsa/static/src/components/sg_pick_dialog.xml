@@ -17,6 +17,7 @@
                     <div class="sg_pick_step_title">1 · Ubicación</div>
                     <t t-if="state.locationOk">
                         <div class="sg_pick_step_value"><i class="fa fa-check"/> <t t-esc="shortLocation(state.location)"/></div>
+                        <div t-if="isRootLine" class="sg_pick_step_sub">Raíz: no hace falta leerla</div>
                     </t>
                     <t t-else="">
                         <div class="sg_pick_step_hint">Leer ubicación</div>

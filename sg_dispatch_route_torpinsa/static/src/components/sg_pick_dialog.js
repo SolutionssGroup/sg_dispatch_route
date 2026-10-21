@@ -30,10 +30,12 @@ export class SgPickDialog extends Component {
         const line = this.line;
         const done = line ? this.props.model.getQtyDone(line) : 0;
         const alreadyPicked = done > 0;
+        // La raiz (WH/Stock) no es un lugar fisico con etiqueta: no se lee.
+        const isRoot = Boolean(line && line.sg_is_route_root);
         this.state = useState({
-            locationOk: alreadyPicked,
+            locationOk: alreadyPicked || isRoot,
             productOk: alreadyPicked,
-            location: alreadyPicked ? line.location_id : null,
+            location: alreadyPicked || isRoot ? line.location_id : null,
             qty: done,
             error: "",
         });
@@ -62,6 +64,11 @@ export class SgPickDialog extends Component {
                 this.props.model.sgPickSession = null;
             }
         });
+    }
+
+    get isRootLine() {
+        const line = this.line;
+        return Boolean(line && line.sg_is_route_root);
     }
 
     get okLabel() {
@@ -109,6 +116,9 @@ export class SgPickDialog extends Component {
 
     shortLocation(location) {
         const name = (location && (location.display_name || location.name)) || "";
+        if (this.isRootLine && this.line && location && location.id === this.line.location_id.id) {
+            return name;
+        }
         return name.split("/").pop();
     }
 
