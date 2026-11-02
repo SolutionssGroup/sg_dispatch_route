@@ -284,6 +284,48 @@ class StockPicking(models.Model):
                     )
                 )
 
+    def _sg_sync_internal_locations_from_lines(self):
+        """
+        En la PDA las lineas se crean con su propio origen y destino, pero el
+        documento (y sus moves) conservan el origen/destino con que se creo el
+        traslado. Resultado: AP/INT/03682 mostraba AP/Stock -> AP/Stock aunque
+        el inventario se movio bien hacia Asignacion. Al terminar el traslado
+        interno se copian al encabezado y a cada move las ubicaciones reales de
+        sus lineas, solo cuando son una unica ubicacion (si hay varias, el
+        origen/destino general se deja como estaba).
+        """
+        for picking in self:
+            if picking.state != "done" or picking.picking_type_id.code != "internal":
+                continue
+            lines = picking.move_line_ids.filtered(lambda ml: ml.quantity > 0)
+            if not lines:
+                continue
+            vals = {}
+            sources = lines.mapped("location_id")
+            dests = lines.mapped("location_dest_id")
+            if len(sources) == 1 and picking.location_id != sources:
+                vals["location_id"] = sources.id
+            if len(dests) == 1 and picking.location_dest_id != dests:
+                vals["location_dest_id"] = dests.id
+            if vals:
+                picking.write(vals)
+            for move in picking.move_ids.filtered(lambda m: m.state == "done"):
+                move_lines = move.move_line_ids.filtered(lambda ml: ml.quantity > 0)
+                move_vals = {}
+                move_sources = move_lines.mapped("location_id")
+                move_dests = move_lines.mapped("location_dest_id")
+                if len(move_sources) == 1 and move.location_id != move_sources:
+                    move_vals["location_id"] = move_sources.id
+                if len(move_dests) == 1 and move.location_dest_id != move_dests:
+                    move_vals["location_dest_id"] = move_dests.id
+                if move_vals:
+                    move.write(move_vals)
+
+    def _action_done(self):
+        result = super()._action_done()
+        self._sg_sync_internal_locations_from_lines()
+        return result
+
     def button_validate(self):
         self._sg_check_internal_same_location_lines()
         result = super().button_validate()
